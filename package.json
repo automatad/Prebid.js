@@ -125,6 +125,7 @@
     "dset": "2.0.1",
     "express": "^4.15.4",
     "fun-hooks": "^0.9.9",
+    "gulp-s3-upload": "^1.7.3",
     "just-clone": "^1.0.2",
     "live-connect-js": "2.3.3"
   },
