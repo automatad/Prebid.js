@@ -464,8 +464,8 @@ gulp.task('coveralls', gulp.series('test-coverage', coveralls));
 
 gulp.task('upload-to-s3', () => gulp.src('build/dist/' + argv.bundleName)
   .pipe(s3({
-    keyTransform: function(relative_filename) {
-      return 'yetijs/' + relative_filename;
+    keyTransform: function(relativeFileName) {
+      return 'yetijs/' + relativeFileName;
     },
     Bucket: process.env.PREBID_S3_UPLOAD_BUCKET_NAME,
   }, {
