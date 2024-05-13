@@ -34,7 +34,11 @@ const INTEG_SERVER_HOST = argv.host ? argv.host : 'localhost';
 const INTEG_SERVER_PORT = 4444;
 const { spawn, fork } = require('child_process');
 const TerserPlugin = require('terser-webpack-plugin');
-
+const s3Config = {
+  accessKeyId: process.env.AWS_ACCESS_KEY,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+}
+var s3 = require('gulp-s3-upload')(s3Config);
 // these modules must be explicitly listed in --modules to be included in the build, won't be part of "all" modules
 var explicitModules = [
   'pre1api'
@@ -519,7 +523,20 @@ gulp.task(viewCoverage);
 
 gulp.task('coveralls', gulp.series('test-coverage', coveralls));
 
-gulp.task('build', gulp.series(clean, 'build-bundle-prod', updateCreativeExample));
+gulp.task('upload-to-s3', () => gulp.src('build/dist/' + argv.bundleName)
+  .pipe(s3(
+      {
+        keyTransform: function(relativeFileName) {
+          return 'yetijs/' + relativeFileName;
+        },
+        Bucket: process.env.PREBID_S3_UPLOAD_BUCKET_NAME,
+      }, {
+        maxRetries: 5
+      }
+    )
+  ));
+
+gulp.task('build', gulp.series(clean, 'build-bundle-prod', updateCreativeExample, 'upload-to-s3'));
 gulp.task('build-postbid', gulp.series(escapePostbidConfig, buildPostbid));
 
 gulp.task('serve', gulp.series(clean, lint, gulp.parallel('build-bundle-dev', watch, test)));
