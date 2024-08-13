@@ -219,9 +219,9 @@ export const converter = ortbConverter({
     const {bidRequest} = context;
 
     let [parseSizeWidth, parseSizeHeight] = bidRequest.mediaTypes.video?.context === 'outstream' ? parseSizes(bidRequest, VIDEO) : [undefined, undefined];
-
-    bidResponse.width = bid.w || parseSizeWidth || bidResponse.playerWidth;
-    bidResponse.height = bid.h || parseSizeHeight || bidResponse.playerHeight;
+    // 0 by default to avoid undefined size
+    bidResponse.width = bid.w || parseSizeWidth || bidResponse.playerWidth || 0;
+    bidResponse.height = bid.h || parseSizeHeight || bidResponse.playerHeight || 0;
 
     if (bidResponse.mediaType === VIDEO && bidRequest.mediaTypes.video.context === 'outstream') {
       bidResponse.renderer = outstreamRenderer(bidResponse);
@@ -736,7 +736,7 @@ export const spec = {
     });
 
     if (fledgeAuctionConfigs) {
-      return { bids, fledgeAuctionConfigs };
+      return { bids, paapi: fledgeAuctionConfigs };
     } else {
       return bids;
     }
@@ -982,11 +982,25 @@ function applyFPD(bidRequest, mediaType, data) {
         'transparency', (transparency) => {
           if (Array.isArray(transparency) && transparency.length) {
             data['dsatransparency'] = transparency.reduce((param, transp) => {
+              // make sure domain is there, otherwise skip entry
+              const domain = transp.domain || '';
+              if (!domain) {
+                return param;
+              }
+
+              // make sure dsaParam array is there (try both 'dsaparams' and 'params', but prefer dsaparams)
+              const dsaParamArray = transp.dsaparams || transp.params;
+              if (!Array.isArray(dsaParamArray) || dsaParamArray.length === 0) {
+                return param;
+              }
+
+              // finally we will add this one, if param has been added already, add our seperator
               if (param) {
                 param += '~~'
               }
-              return param += `${transp.domain}~${transp.dsaparams.join('_')}`
-            }, '')
+
+              return param += `${domain}~${dsaParamArray.join('_')}`;
+            }, '');
           }
         }
       ])
