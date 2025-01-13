@@ -4,11 +4,10 @@ import { getGptSlotForAdUnitCode } from '../libraries/gptUtils/gptUtils.js'
 import { deepClone, logMessage } from '../src/utils.js';
 import { getGlobal } from '../src/prebidGlobal.js';
 import { logInfo, logError, logWarn } from '../src/utils.js'
-import { loadExternalScript } from '../src/adloader.js';
 
 
 export const subModuleObj = {
-    name: 'mileRtd',
+    name: 'mile',
     init: init,
     onAuctionInitEvent: onAuctionInit,
     onAuctionEndEvent: onAuctionEnd,
@@ -195,15 +194,17 @@ const
             }
         }
     }, 
-    LOG_PREFIX = 'Mile RTD: ', 
-    EXTERNAL_JS_ENDPOINT = 'https://scripts.atmtd.com/js/prebid_analytics/prebid_analytics.js'; 
+    RTD_HOST = `https://rtd.mile.so`
+    LOG_PREFIX = 'Mile RTD: '; 
 
 let 
     isGPTSlotUsedForSchema, 
     rtdData, 
     hasFetchFailed,
     fetchTimeOut, 
-    trafficShapingGranularity = TS_GRANULARITY.SSP; 
+    trafficShapingGranularity = TS_GRANULARITY.SSP, 
+    userSpecificTSEnabled = false, 
+    sspsPushedThroughForUser; 
 
 function getAdUnit(adUnitCode) {
     const adUnit = pbjs.adUnits.filter((unit) => unit.code === adUnitCode)
@@ -240,7 +241,7 @@ function isAuctionShaped(auctionID) {
 }
 
 function createRTDDataEndpoint(siteID) {
-    return `https://floors-worker-staging.automatad.workers.dev/rtd.json?siteID=${siteID}`
+    return `${RTD_HOST}/rtd.json?siteID=${siteID}`
 }
 
 function fetchRTDData(url, timeout = 1000) {
@@ -296,6 +297,24 @@ function fetchRTDData(url, timeout = 1000) {
     })
 }
 
+function getPushedThroughSSPs() {
+    // return new Promise((resolve) => {
+        try {
+            const stringifiedResult = window.localStorage.getItem('__milePushThroughSSPs')
+
+            return stringifiedResult ? JSON.parse(stringifiedResult) : null 
+            // storage.getDataFromLocalStorage('__milePushThroughSSPs', (result) => {
+            //     sspsPushedThroughForUser = result ? JSON.parse(result) : {}
+            //     resolve()
+            // })
+        } catch {
+            // resolve regardless of error
+            resolve()
+        }
+        
+    // })
+}
+
 function doNotShapeAuction(data, reason) {
     const 
         auctionID = data.auctionId, 
@@ -335,6 +354,8 @@ function doNotShapeAuction(data, reason) {
 function onGetBidRequest(data, callback, config) {
     // inspect/update auction details
 
+    if (!sspsPushedThroughForUser) sspsPushedThroughForUser = getPushedThroughSSPs()
+
     const 
         auctionID = data.auctionId,
         url = createRTDDataEndpoint(config.params.siteID),
@@ -356,7 +377,7 @@ function onGetBidRequest(data, callback, config) {
 
         logMessage(`${LOG_PREFIX}Traffic shaping has been enabled for auction with ID ${auctionID}`)
 
-        console.log(deepClone(data), 'beforeAlterBid')
+        console.log(deepClone(data), 'mileBeforeAlterBid')
 
         auctionShapedStatus[auctionID] = true
         const updatedAdUnits = [], dataToLog = []
@@ -368,7 +389,8 @@ function onGetBidRequest(data, callback, config) {
                 updatedBids = [], 
                 dataToLogForAdUnit = {
                     code: adUnit.code, 
-                    biddersRemoved: []
+                    biddersRemoved: [],
+                    biddersPushedThrough: []
                 }; 
             let key, ortb2Imp; 
 
@@ -395,7 +417,7 @@ function onGetBidRequest(data, callback, config) {
                 shaped: false
             }; 
 
-            const  biddersAndSizesRemoved = {}
+            const  biddersAndSizesRemoved = {}, biddersAndSizesPushedThrough = {}; 
 
             for (let j = 0; j < adUnit.bids.length; j++) {
                 const 
@@ -404,33 +426,67 @@ function onGetBidRequest(data, callback, config) {
 
                 // Set an empty object for all bidders
 
-                if (vals[key] && vals[key][bid.bidder]) updatedBids.push(bid); 
+                if (vals[key] && vals[key][bid.bidder]) updatedBids.push(bid);
                 else if (vals[key] !== undefined) {
                     ortb2Imp.ext.mileRTDMeta.shaped = true
 
                     if (ortb2Imp.ext.mileRTDMeta.removed === undefined) ortb2Imp.ext.mileRTDMeta.removed = {}
 
-                    if (ortb2Imp.ext.mileRTDMeta.removed[bid.bidder] === undefined) {
+                    // If the bidder has already been removed, we can ignore the bid and just conitnue
 
-                        const sizesRemovedMap = {}
-                        adUnit.mediaTypes.banner.sizes.forEach(([w,h]) => sizesRemovedMap[`${w}x${h}`] = 1)
-                        biddersAndSizesRemoved[bid.bidder] = sizesRemovedMap
+                    if (biddersAndSizesRemoved[bid.bidder] === undefined) {
 
-                        dataToLogForAdUnit.biddersRemoved.push(bid.bidder)
+                        let hasUserSpecificTrafficShapingBeenPerformed = false
+
+                        if (userSpecificTSEnabled && sspsPushedThroughForUser) { 
+                            const now = Date.now()
+
+                            if (sspsPushedThroughForUser[bid.bidder] && sspsPushedThroughForUser[bid.bidder].validUntil) {
+                                if (now < sspsPushedThroughForUser[bid.bidder].validUntil) {
+                                    hasUserSpecificTrafficShapingBeenPerformed = true
+                                    const sizesPushedThroughMap = {}
+                                    adUnit.mediaTypes.banner.sizes.forEach(([w,h]) => sizesPushedThroughMap[`${w}x${h}`] = 1)
+                                    biddersAndSizesPushedThrough[bid.bidder] = sizesPushedThroughMap
+                                    dataToLogForAdUnit.biddersPushedThrough.push(bid.bidder)
+                                    updatedBids.push(bid)
+                                }
+                            }
+                        }
+                        
+                        if (!hasUserSpecificTrafficShapingBeenPerformed) {
+                            const sizesRemovedMap = {}
+                            adUnit.mediaTypes.banner.sizes.forEach(([w,h]) => sizesRemovedMap[`${w}x${h}`] = 1)
+                            biddersAndSizesRemoved[bid.bidder] = sizesRemovedMap
+                            dataToLogForAdUnit.biddersRemoved.push(bid.bidder)
+                        }
+
                     }
+
                 } else updatedBids.push(bid);
             }
 
-            adUnit.ortb2Imp = deepClone({
+            const newOrtb2Imp = {
                 ...ortb2Imp, 
                 ext: {
                     ...ortb2Imp.ext, 
                     mileRTDMeta: {
                         ...ortb2Imp.ext.mileRTDMeta,
-                        removed: biddersAndSizesRemoved
+                        removed: biddersAndSizesRemoved,
                     }
                 }
-            })
+            }
+
+            newOrtb2Imp.ext.mileRTDMeta.userSpecificTSEnabled = userSpecificTSEnabled 
+
+            if (Object.keys(biddersAndSizesPushedThrough).length) { // Some bidders have been pushed through for user specific ts
+                newOrtb2Imp.ext.mileRTDMeta.userSpecificTSPerformed = true
+                newOrtb2Imp.ext.mileRTDMeta.biddersPushedThrough = biddersAndSizesPushedThrough
+            } else {
+                newOrtb2Imp.ext.mileRTDMeta.userSpecificTSPerformed = false
+            }
+            
+
+            adUnit.ortb2Imp = deepClone(newOrtb2Imp)
 
             // Add data to log for ad unit
 
@@ -444,11 +500,13 @@ function onGetBidRequest(data, callback, config) {
 
         callback(); 
 
-        console.log(data, 'afterAlterBid')
+        console.log(data, 'mileAfterAlterBid')
         dataToLog.forEach((data) => {
-            const removedBidders = Array.from(new Set(data.biddersRemoved))
-            logInfo(`${LOG_PREFIX}Removed ${removedBidders.length} bidders from ad unit code ${data.code}`)
-            if (removedBidders.length) logInfo(`${LOG_PREFIX}Bidders are [${removedBidders.join(', ')}]`)
+            const removedBidders = Array.from(new Set(data.biddersRemoved)), pushedThrough = Array.from((new Set(data.biddersPushedThrough)))
+            if (userSpecificTSEnabled) logInfo(`${LOG_PREFIX}Pushed through ${pushedThrough.length} bidder(s) for ad unit code ${data.code}`)
+            if (pushedThrough.length) logInfo(`${LOG_PREFIX}Bidder(s) is or are [${pushedThrough.join(',')}]`)
+            logInfo(`${LOG_PREFIX}Removed ${removedBidders.length} bidder(s) from ad unit code ${data.code}`)
+            if (removedBidders.length) logInfo(`${LOG_PREFIX}Bidder(s) is or are [${removedBidders.join(', ')}]`)
         })
     }).catch((options) => {
         let reason; 
@@ -570,7 +628,7 @@ function onBidResponse(bidResponse, config, userConsent) {
 function init(config) {
 
     if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRANULARITY.SIZE
-    if (config.params && config.params.loadExternalScript === true) loadExternalScript(EXTERNAL_JS_ENDPOINT)
+    if (config.params && config.params.user) userSpecificTSEnabled = true
 
     return true;
    
