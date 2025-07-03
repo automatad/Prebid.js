@@ -363,6 +363,7 @@ function onGetBidRequest(data, callback, config) {
 
   fetchRTDData(url, timeout)
     .then(() => {
+      rtdData = rtdData.response;
       if (rtdData.schema.fields[0] === "gptAdUnit")
         isGPTSlotUsedForSchema = true;
 
