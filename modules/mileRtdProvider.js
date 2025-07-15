@@ -1,4 +1,4 @@
-import { deepClone, logError, logInfo, logMessage, logWarn } from '../src/utils.js';
+import { deepAccess, deepClone, logError, logInfo, logMessage, logWarn } from '../src/utils.js';
 
 import { MODULE_TYPE_RTD } from '../src/activities/modules.js';
 import { ajaxBuilder } from '../src/ajax.js';
@@ -48,6 +48,8 @@ let fetchTimeOut;
 let trafficShapingGranularity = TS_GRANULARITY.SSP;
 let userSpecificTSEnabled = false;
 let sspsPushedThroughForUser;
+let siteID;
+let floorsEnabledViaRTDModule = false;
 
 function getAdUnit(adUnitCode) {
   const adUnit = pbjs.adUnits.filter((unit) => unit.code === adUnitCode);
@@ -90,7 +92,7 @@ function isAuctionShaped(auctionID) {
 }
 
 function createRTDDataEndpoint(siteID) {
-  return `${RTD_HOST}/ts-static/0OsUhO/US/w/safari/ts.json?siteID=${siteID}`;
+  return `${RTD_HOST}/ts-static/${siteID}/US/w/safari/ts.json`;
 }
 
 function fetchRTDData(url, timeout = 1000) {
@@ -487,6 +489,14 @@ function onBidResponse(bidResponse, config, userConsent) {}
 function init(config) {
   if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRANULARITY.SIZE;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
+
+  if (deepAccess(config, 'params.siteID')) {
+    siteID = deepAccess(config, 'params.siteID')
+  }
+
+  if (deepAccess(config, 'params.floors')) {
+    floorsEnabledViaRTDModule = deepAccess(config, 'params.floors')
+  }
 
   return true;
 }
