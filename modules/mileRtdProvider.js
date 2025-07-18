@@ -1,9 +1,22 @@
+import {
+  deepClone,
+  logError,
+  logInfo,
+  logMessage,
+  logWarn,
+} from "../src/utils.js";
+
+import { MODULE_TYPE_RTD } from "../src/activities/modules.js";
 import { ajaxBuilder } from "../src/ajax.js";
-import { submodule } from "../src/hook.js";
-import { getGptSlotForAdUnitCode } from "../libraries/gptUtils/gptUtils.js";
-import { deepClone, logMessage } from "../src/utils.js";
 import { getGlobal } from "../src/prebidGlobal.js";
-import { logInfo, logError, logWarn } from "../src/utils.js";
+import { getGptSlotForAdUnitCode } from "../libraries/gptUtils/gptUtils.js";
+import { getStorageManager } from "../src/storageManager.js";
+import { submodule } from "../src/hook.js";
+
+const storage = getStorageManager({
+  moduleType: MODULE_TYPE_RTD,
+  moduleName: "mile",
+});
 
 export const subModuleObj = {
   name: "mile",
@@ -15,189 +28,36 @@ export const subModuleObj = {
   getBidRequestData: onGetBidRequest,
 };
 
-const DISABLED_REASONS = {
-    FETCH_FAILED: "fetchFail",
-    FETCH_TIMEOUT: "fetchTimeout",
-    WRONG_SCHEMA: "wrongSchema",
-    SKIPPED: "skipped",
-  },
-  TS_GRANULARITY = {
-    SIZE: "size",
-    SSP: "ssp",
-  },
-  auctionShapedStatus = {},
-  ajax = ajaxBuilder(),
-  pbjs = getGlobal(),
-  _rtdData = {
-    schema: {
-      fields: ["gptAdUnit"],
-    },
-    skipRate: 0,
-    values: {
-      "21804848220,22690441817/ATD_RecipeReader/ATD_728x90_Footer": {
-        ttd: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        sharethrough: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        rubicon: {
-          "1x1": 1,
-        },
-        pubmatic: {
-          "1x1": 1,
-          "325x508": 1,
-        },
-        teads: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        undertone: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        rbBidder: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        medianet: {
-          "1x1": 1,
-          "300x250": 1,
-          "325x508": 1,
-        },
-        nativo: {
-          "300x250": 1,
-          "325x508": 1,
-        },
-        appnexus: {
-          "300x250": 1,
-          "728x90": 1,
-        },
-        triplelift: {
-          "300x250": 1,
-        },
-        kargo: {
-          "300x250": 1,
-        },
-        unruly: {
-          "325x508": 1,
-        },
-        openx: {
-          "325x508": 1,
-        },
-      },
-      "21804848220,22690441817/ATD_RecipeReader/ATD_970x250_EOA_CP": {
-        ttd: {
-          "300x250": 1,
-          "325x508": 1,
-        },
-        appnexus: {
-          "300x250": 1,
-        },
-        amx: {
-          "300x250": 1,
-          "325x508": 1,
-        },
-        nativo: {
-          "300x250": 1,
-        },
-        criteo: {
-          "300x250": 1,
-        },
-        smartadserver: {
-          "300x250": 1,
-          "325x508": 1,
-        },
-        pubmatic: {
-          "300x250": 1,
-          "325x508": 1,
-        },
-        ix: {
-          "325x508": 1,
-        },
-        sharethrough: {
-          "325x508": 1,
-        },
-        unruly: {
-          "325x508": 1,
-        },
-        sovrn: {
-          "325x508": 1,
-        },
-        medianet: {
-          "325x508": 1,
-        },
-      },
-      "21804848220,22690441817/ATD_RecipeReader/ATD_970x250_MH_CP": {
-        pubmatic: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        openx: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        triplelift: {
-          "320x100": 1,
-        },
-        kargo: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        kueezrtb: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        sovrn: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        criteo: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        gumgum: {
-          "320x100": 1,
-          "320x50": 1,
-        },
-        medianet: {
-          "320x100": 1,
-        },
-        rubicon: {
-          "320x50": 1,
-        },
-        nativo: {
-          "320x50": 1,
-        },
-        teads: {
-          "320x50": 1,
-        },
-        appnexus: {
-          "320x50": 1,
-        },
-        ogury: {
-          "320x50": 1,
-        },
-      },
-    },
-  },
-  RTD_HOST = `https://rtd.mile.so`;
-LOG_PREFIX = "Mile RTD: ";
+const DISABLED_REASONS = Object.freeze({
+  FETCH_FAILED: "fetchFail",
+  FETCH_TIMEOUT: "fetchTimeout",
+  WRONG_SCHEMA: "wrongSchema",
+  SKIPPED: "skipped",
+});
+const FETCH_FAILED_REASONS = Object.freeze({
+  TIMEOUT: "timeout",
+  FETCH_FAILED: "fetchFail",
+  INCORRECT_SCHEMA: "incorrectSchema",
+});
+const TS_GRANULARITY = Object.freeze({
+  SIZE: "size",
+  SSP: "ssp",
+});
+const auctionShapedStatus = {};
+const ajax = ajaxBuilder();
+const pbjs = getGlobal();
 
-let isGPTSlotUsedForSchema,
-  rtdData,
-  hasFetchFailed,
-  fetchTimeOut,
-  trafficShapingGranularity = TS_GRANULARITY.SSP,
-  userSpecificTSEnabled = false,
-  sspsPushedThroughForUser;
+const RTD_HOST = `https://floors.atmtd.com`;
+const LOG_PREFIX = "Mile RTD: ";
+
+let isGPTSlotUsedForSchema;
+let rtdData;
+let hasFetchFailed;
+let fetchTimeOut;
+let trafficShapingGranularity = TS_GRANULARITY.SSP;
+let userSpecificTSEnabled = false;
+let sspsPushedThroughForUser;
+let rtdFetchPromise;
 
 function getAdUnit(adUnitCode) {
   const adUnit = pbjs.adUnits.filter((unit) => unit.code === adUnitCode);
@@ -217,17 +77,21 @@ function getKey(adUnitCode) {
 }
 
 function shouldAuctionBeShaped() {
-  if (hasFetchFailed === undefined)
+  if (hasFetchFailed === undefined) {
     return { shouldBeShaped: false, reason: DISABLED_REASONS.FETCH_TIMEOUT };
-  if (hasFetchFailed === true)
+  }
+  if (hasFetchFailed === true) {
     return { shouldBeShaped: false, reason: DISABLED_REASONS.FETCH_FAILED };
+  }
 
-  const { skipRate } = rtdData,
-    randomNumber = Math.floor(Math.random() * 100);
+  const { skipRate } = rtdData;
+  const randomNumber = Math.floor(Math.random() * 100);
 
-  if (randomNumber > skipRate)
+  if (randomNumber > skipRate) {
     return { shouldBeShaped: true, reason: undefined };
-  else return { shouldBeShaped: false, reason: DISABLED_REASONS.SKIPPED };
+  } else {
+    return { shouldBeShaped: false, reason: DISABLED_REASONS.SKIPPED };
+  }
 }
 
 function isAuctionShaped(auctionID) {
@@ -236,20 +100,30 @@ function isAuctionShaped(auctionID) {
 }
 
 function createRTDDataEndpoint(siteID) {
-  return `${RTD_HOST}/ts-static/0OsUhO/US/w/safari/ts.json?siteID=${siteID}`;
+  return `${RTD_HOST}/rtd.json?siteID=${siteID}`;
 }
 
 function fetchRTDData(url, timeout = 1000) {
+  if (rtdFetchPromise) {
+    logWarn(`${LOG_PREFIX}RTD fetch already in progress. Skipping this call.`);
+    return rtdFetchPromise;
+  }
+
   const startTime = Date.now();
 
-  return new Promise((resolve, reject) => {
+  rtdFetchPromise = new Promise((resolve, reject) => {
     if (rtdData) {
       logMessage(`${LOG_PREFIX}Response loaded from initial fetch`, rtdData);
-      resolve(rtdData);
+      resolve();
     } else {
       fetchTimeOut = setTimeout(
-        () => reject({ reason: { name: "AbortError" } }),
-        timeout
+        () =>
+          reject(
+            new Error(`Fetch timed out`, {
+              cause: FETCH_FAILED_REASONS.TIMEOUT,
+            })
+          ),
+        timeout - 1
       );
 
       ajax(url, {
@@ -270,34 +144,41 @@ function fetchRTDData(url, timeout = 1000) {
               );
               resolve();
             } catch (err) {
-              reject({
-                reason: {
-                  name: err.name,
-                  msg: err.message,
-                },
-              });
+              reject(
+                new Error(`Incorrect schema`, {
+                  cause: FETCH_FAILED_REASONS.INCORRECT_SCHEMA,
+                })
+              );
             }
           } else {
             reject(
-              `Http fetch returned non 200 code. Status code ${req.status}`
+              new Error(`Non 200 status code`, {
+                cause: FETCH_FAILED_REASONS.FETCH_FAILED,
+              })
             );
           }
         },
-        error: function (_, options) {
+        error: function (_) {
           clearTimeout(fetchTimeOut);
           fetchTimeOut = undefined;
 
-          reject(options);
+          reject(
+            new Error(`Fetch failed`, {
+              cause: FETCH_FAILED_REASONS.FETCH_FAILED,
+            })
+          );
         },
       });
     }
   });
+
+  return rtdFetchPromise;
 }
 
 function getPushedThroughSSPs() {
   // return new Promise((resolve) => {
   try {
-    const stringifiedResult = window.localStorage.getItem(
+    const stringifiedResult = storage.getDataFromLocalStorage(
       "__milePushThroughSSPs"
     );
 
@@ -308,33 +189,30 @@ function getPushedThroughSSPs() {
     // })
   } catch {
     // resolve regardless of error
-    resolve();
+    return {};
   }
 
   // })
 }
 
 function doNotShapeAuction(data, reason) {
-  const auctionID = data.auctionId,
-    adUnits = data.adUnits;
+  const auctionID = data.auctionId;
+  const adUnits = data.adUnits;
 
-  let fetched = reason === DISABLED_REASONS.FETCH_FAILED ? false : true;
+  let fetched = !(
+    reason === DISABLED_REASONS.FETCH_TIMEOUT ||
+    reason === DISABLED_REASONS.FETCH_FAILED
+  );
 
-  if (!fetched || reason === DISABLED_REASONS.FETCH_TIMEOUT) {
-    logWarn(
-      `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason}`
-    );
-  } else {
-    logMessage(
-      `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason}`
-    );
-  }
+  logWarn(
+    `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason}`
+  );
 
   for (let i = 0; i < adUnits.length; i++) {
     const adUnit = adUnits[i];
     let ortb2Imp;
 
-    if (adUnit.ortb2Imp) ortb2Imp = adUnit.ortb2Imp;
+    if (adUnit.ortb2Imp) ortb2Imp = deepClone(adUnit.ortb2Imp);
     else ortb2Imp = {};
 
     if (ortb2Imp.ext === undefined) ortb2Imp.ext = {};
@@ -347,7 +225,7 @@ function doNotShapeAuction(data, reason) {
       fetched,
     };
 
-    adUnit.ortb2Imp = deepClone(ortb2Imp);
+    adUnit.ortb2Imp = { ...ortb2Imp };
   }
 }
 
@@ -357,13 +235,13 @@ function onGetBidRequest(data, callback, config) {
   if (!sspsPushedThroughForUser)
     sspsPushedThroughForUser = getPushedThroughSSPs();
 
-  const auctionID = data.auctionId,
-    url = createRTDDataEndpoint(config.params.siteID),
-    timeout = (config.params && config.params.timeout) || 1000;
+  const auctionID = data.auctionId;
+  const url = createRTDDataEndpoint(config.params.siteID);
+  const timeout = (config.params && config.params.timeout) || 1000;
 
   fetchRTDData(url, timeout)
     .then(() => {
-      rtdData = rtdData.response;
+      // rtdData = data.response;
       if (rtdData.schema.fields[0] === "gptAdUnit")
         isGPTSlotUsedForSchema = true;
 
@@ -382,17 +260,17 @@ function onGetBidRequest(data, callback, config) {
       console.log(deepClone(data), "mileBeforeAlterBid");
 
       auctionShapedStatus[auctionID] = true;
-      const updatedAdUnits = [],
-        dataToLog = [];
+      const updatedAdUnits = [];
+      const dataToLog = [];
 
       for (let i = 0; i < data.adUnits.length; i++) {
-        const adUnit = data.adUnits[i],
-          updatedBids = [],
-          dataToLogForAdUnit = {
-            code: adUnit.code,
-            biddersRemoved: [],
-            biddersPushedThrough: [],
-          };
+        const adUnit = data.adUnits[i];
+        const updatedBids = [];
+        const dataToLogForAdUnit = {
+          code: adUnit.code,
+          biddersRemoved: [],
+          biddersPushedThrough: [],
+        };
         let key, ortb2Imp;
 
         if (isGPTSlotUsedForSchema) {
@@ -417,12 +295,12 @@ function onGetBidRequest(data, callback, config) {
           shaped: false,
         };
 
-        const biddersAndSizesRemoved = {},
-          biddersAndSizesPushedThrough = {};
+        const biddersAndSizesRemoved = {};
+        const biddersAndSizesPushedThrough = {};
 
         for (let j = 0; j < adUnit.bids.length; j++) {
-          const bid = adUnit.bids[j],
-            vals = rtdData.values;
+          const bid = adUnit.bids[j];
+          const vals = rtdData.values;
 
           // Set an empty object for all bidders
 
@@ -510,33 +388,36 @@ function onGetBidRequest(data, callback, config) {
 
       console.log(data, "mileAfterAlterBid");
       dataToLog.forEach((data) => {
-        const removedBidders = Array.from(new Set(data.biddersRemoved)),
-          pushedThrough = Array.from(new Set(data.biddersPushedThrough));
-        if (userSpecificTSEnabled)
+        const removedBidders = Array.from(new Set(data.biddersRemoved));
+        const pushedThrough = Array.from(new Set(data.biddersPushedThrough));
+        if (userSpecificTSEnabled) {
           logInfo(
             `${LOG_PREFIX}Pushed through ${pushedThrough.length} bidder(s) for ad unit code ${data.code}`
           );
-        if (pushedThrough.length)
+        }
+        if (pushedThrough.length) {
           logInfo(
             `${LOG_PREFIX}Bidder(s) is or are [${pushedThrough.join(",")}]`
           );
+        }
         logInfo(
           `${LOG_PREFIX}Removed ${removedBidders.length} bidder(s) from ad unit code ${data.code}`
         );
-        if (removedBidders.length)
+        if (removedBidders.length) {
           logInfo(
             `${LOG_PREFIX}Bidder(s) is or are [${removedBidders.join(", ")}]`
           );
+        }
       });
     })
-    .catch((options) => {
+    .catch((error) => {
       let reason;
 
-      if (options.reason && options.reason.name === "AbortError") {
+      if (error.cause && error.cause === FETCH_FAILED_REASONS.TIMEOUT) {
         reason = DISABLED_REASONS.FETCH_TIMEOUT;
         hasFetchFailed = undefined;
       } else {
-        reason = DISABLED_REASONS.FETCH_FAILED;
+        reason = error.cause;
         hasFetchFailed = true;
       }
 
@@ -545,7 +426,6 @@ function onGetBidRequest(data, callback, config) {
       callback();
 
       if (hasFetchFailed) logError(`${LOG_PREFIX}Http fetch to ${url} failed`);
-      return;
     });
 }
 
@@ -556,7 +436,7 @@ function onAuctionEnd(data) {
 }
 
 function onBidRequest(data) {
-  if (trafficShapingGranularity !== "size") return;
+  if (trafficShapingGranularity !== TS_GRANULARITY.SIZE) return;
 
   const auctionID = data.auctionId;
 
@@ -564,17 +444,17 @@ function onBidRequest(data) {
     return;
   }
 
-  const updatedBids = [],
-    dataToLogForAdUnits = {};
+  const updatedBids = [];
+  const dataToLogForAdUnits = {};
 
   for (let i = 0; i < data.bids.length; i++) {
-    const bid = data.bids[i],
-      bidder = bid.bidder,
-      adUnitCode = bid.adUnitCode,
-      adUnit = getAdUnit(adUnitCode),
-      updatedSizes = [],
-      key = getKey(bid.adUnitCode),
-      vals = rtdData.values;
+    const bid = data.bids[i];
+    const bidder = bid.bidder;
+    const adUnitCode = bid.adUnitCode;
+    const adUnit = getAdUnit(adUnitCode);
+    const updatedSizes = [];
+    const key = getKey(bid.adUnitCode);
+    const vals = rtdData.values;
 
     if (!key || !adUnit) continue;
 
@@ -584,19 +464,21 @@ function onBidRequest(data) {
     else ortb2Imp = {};
 
     if (ortb2Imp.ext === undefined) ortb2Imp.ext = {};
-    if (ortb2Imp.ext.mileRTDMeta === undefined)
+    if (ortb2Imp.ext.mileRTDMeta === undefined) {
       ortb2Imp.ext.mileRTDMeta = {
         skipped: false,
         enabled: true,
         reason: "",
         fetched: true,
       };
+    }
+
     if (ortb2Imp.ext.mileRTDMeta.shaped === undefined)
       ortb2Imp.ext.mileRTDMeta.shaped = false;
 
     for (let j = 0; j < bid.sizes.length; j++) {
       const [width, height] = bid.sizes[j];
-      size = `${width}x${height}`;
+      const size = `${width}x${height}`;
 
       if (vals[key] && vals[key][bidder] && vals[key][bidder][size])
         updatedSizes.push(bid.sizes[j]);
@@ -645,6 +527,15 @@ function init(config) {
   if (config.params && config.params.granularity === TS_GRANULARITY.SIZE)
     trafficShapingGranularity = TS_GRANULARITY.SIZE;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
+
+  logMessage(`${LOG_PREFIX}Initiated with config: `, config);
+  // Don't need a catch here because even if it gets rejected due to timeout/failure,
+  // The value of rtdDate will be set after the ajax call is completed. This call is just used to
+  // call the endpoint asap.
+  fetchRTDData(
+    createRTDDataEndpoint(config.params.siteID),
+    config.params && config.params.timeout
+  ).catch(() => {});
 
   return true;
 }
