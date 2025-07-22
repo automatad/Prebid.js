@@ -4,22 +4,22 @@ import {
   logInfo,
   logMessage,
   logWarn,
-} from "../src/utils.js";
+} from '../src/utils.js';
 
-import { MODULE_TYPE_RTD } from "../src/activities/modules.js";
-import { ajaxBuilder } from "../src/ajax.js";
-import { getGlobal } from "../src/prebidGlobal.js";
-import { getGptSlotForAdUnitCode } from "../libraries/gptUtils/gptUtils.js";
-import { getStorageManager } from "../src/storageManager.js";
-import { submodule } from "../src/hook.js";
+import { MODULE_TYPE_RTD } from '../src/activities/modules.js';
+import { ajaxBuilder } from '../src/ajax.js';
+import { getGlobal } from '../src/prebidGlobal.js';
+import { getGptSlotForAdUnitCode } from '../libraries/gptUtils/gptUtils.js';
+import { getStorageManager } from '../src/storageManager.js';
+import { submodule } from '../src/hook.js';
 
 const storage = getStorageManager({
   moduleType: MODULE_TYPE_RTD,
-  moduleName: "mile",
+  moduleName: 'mile',
 });
 
 export const subModuleObj = {
-  name: "mile",
+  name: 'mile',
   init: init,
   onAuctionInitEvent: onAuctionInit,
   onAuctionEndEvent: onAuctionEnd,
@@ -29,26 +29,26 @@ export const subModuleObj = {
 };
 
 const DISABLED_REASONS = Object.freeze({
-  FETCH_FAILED: "fetchFail",
-  FETCH_TIMEOUT: "fetchTimeout",
-  WRONG_SCHEMA: "wrongSchema",
-  SKIPPED: "skipped",
+  FETCH_FAILED: 'fetchFail',
+  FETCH_TIMEOUT: 'fetchTimeout',
+  WRONG_SCHEMA: 'wrongSchema',
+  SKIPPED: 'skipped',
 });
 const FETCH_FAILED_REASONS = Object.freeze({
-  TIMEOUT: "timeout",
-  FETCH_FAILED: "fetchFail",
-  INCORRECT_SCHEMA: "incorrectSchema",
+  TIMEOUT: 'timeout',
+  FETCH_FAILED: 'fetchFail',
+  INCORRECT_SCHEMA: 'incorrectSchema',
 });
 const TS_GRANULARITY = Object.freeze({
-  SIZE: "size",
-  SSP: "ssp",
+  SIZE: 'size',
+  SSP: 'ssp',
 });
 const auctionShapedStatus = {};
 const ajax = ajaxBuilder();
 const pbjs = getGlobal();
 
 const RTD_HOST = `https://floors.atmtd.com`;
-const LOG_PREFIX = "Mile RTD: ";
+const LOG_PREFIX = 'Mile RTD: ';
 
 let isGPTSlotUsedForSchema;
 let rtdData;
@@ -104,7 +104,7 @@ function createRTDDataEndpoint(siteID) {
 }
 
 function fetchRTDData(url, timeout = 1000) {
-  if (rtdFetchPromise) {
+  if (rtdFetchPromise && rtdFetchPromise.status === 'pending') {
     logWarn(`${LOG_PREFIX}RTD fetch already in progress. Skipping this call.`);
     return rtdFetchPromise;
   }
@@ -117,12 +117,7 @@ function fetchRTDData(url, timeout = 1000) {
       resolve();
     } else {
       fetchTimeOut = setTimeout(
-        () =>
-          reject(
-            new Error(`Fetch timed out`, {
-              cause: FETCH_FAILED_REASONS.TIMEOUT,
-            })
-          ),
+        () => reject(new Error(`Fetch timed out`, { cause: FETCH_FAILED_REASONS.TIMEOUT })),
         timeout - 1
       );
 
@@ -179,7 +174,7 @@ function getPushedThroughSSPs() {
   // return new Promise((resolve) => {
   try {
     const stringifiedResult = storage.getDataFromLocalStorage(
-      "__milePushThroughSSPs"
+      '__milePushThroughSSPs'
     );
 
     return stringifiedResult ? JSON.parse(stringifiedResult) : null;
@@ -199,10 +194,7 @@ function doNotShapeAuction(data, reason) {
   const auctionID = data.auctionId;
   const adUnits = data.adUnits;
 
-  let fetched = !(
-    reason === DISABLED_REASONS.FETCH_TIMEOUT ||
-    reason === DISABLED_REASONS.FETCH_FAILED
-  );
+  let fetched = !(reason === DISABLED_REASONS.FETCH_TIMEOUT || reason === DISABLED_REASONS.FETCH_FAILED);
 
   logWarn(
     `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason}`
@@ -223,17 +215,16 @@ function doNotShapeAuction(data, reason) {
       enabled: true,
       reason,
       fetched,
-    };
+    }
 
-    adUnit.ortb2Imp = { ...ortb2Imp };
+    adUnit.ortb2Imp = {...ortb2Imp};
   }
 }
 
 function onGetBidRequest(data, callback, config) {
   // inspect/update auction details
 
-  if (!sspsPushedThroughForUser)
-    sspsPushedThroughForUser = getPushedThroughSSPs();
+  if (!sspsPushedThroughForUser) sspsPushedThroughForUser = getPushedThroughSSPs();
 
   const auctionID = data.auctionId;
   const url = createRTDDataEndpoint(config.params.siteID);
@@ -242,8 +233,7 @@ function onGetBidRequest(data, callback, config) {
   fetchRTDData(url, timeout)
     .then(() => {
       // rtdData = data.response;
-      if (rtdData.schema.fields[0] === "gptAdUnit")
-        isGPTSlotUsedForSchema = true;
+      if (rtdData && rtdData.schema && rtdData.schema.fields[0] === 'gptAdUnit') isGPTSlotUsedForSchema = true;
 
       const { shouldBeShaped, reason } = shouldAuctionBeShaped();
 
@@ -257,7 +247,7 @@ function onGetBidRequest(data, callback, config) {
         `${LOG_PREFIX}Traffic shaping has been enabled for auction with ID ${auctionID}`
       );
 
-      console.log(deepClone(data), "mileBeforeAlterBid");
+      console.log(deepClone(data), 'mileBeforeAlterBid');
 
       auctionShapedStatus[auctionID] = true;
       const updatedAdUnits = [];
@@ -290,7 +280,7 @@ function onGetBidRequest(data, callback, config) {
         ortb2Imp.ext.mileRTDMeta = {
           skipped: false,
           enabled: true,
-          reason: "",
+          reason: '',
           fetched: true,
           shaped: false,
         };
@@ -308,8 +298,7 @@ function onGetBidRequest(data, callback, config) {
           else if (vals[key] !== undefined) {
             ortb2Imp.ext.mileRTDMeta.shaped = true;
 
-            if (ortb2Imp.ext.mileRTDMeta.removed === undefined)
-              ortb2Imp.ext.mileRTDMeta.removed = {};
+            if (ortb2Imp.ext.mileRTDMeta.removed === undefined) ortb2Imp.ext.mileRTDMeta.removed = {};
 
             // If the bidder has already been removed, we can ignore the bid and just conitnue
 
@@ -386,7 +375,7 @@ function onGetBidRequest(data, callback, config) {
 
       callback();
 
-      console.log(data, "mileAfterAlterBid");
+      console.log(data, 'mileAfterAlterBid');
       dataToLog.forEach((data) => {
         const removedBidders = Array.from(new Set(data.biddersRemoved));
         const pushedThrough = Array.from(new Set(data.biddersPushedThrough));
@@ -397,7 +386,7 @@ function onGetBidRequest(data, callback, config) {
         }
         if (pushedThrough.length) {
           logInfo(
-            `${LOG_PREFIX}Bidder(s) is or are [${pushedThrough.join(",")}]`
+            `${LOG_PREFIX}Bidder(s) is or are [${pushedThrough.join(',')}]`
           );
         }
         logInfo(
@@ -405,7 +394,7 @@ function onGetBidRequest(data, callback, config) {
         );
         if (removedBidders.length) {
           logInfo(
-            `${LOG_PREFIX}Bidder(s) is or are [${removedBidders.join(", ")}]`
+            `${LOG_PREFIX}Bidder(s) is or are [${removedBidders.join(', ')}]`
           );
         }
       });
@@ -429,7 +418,8 @@ function onGetBidRequest(data, callback, config) {
     });
 }
 
-function onAuctionInit(auctionDetails, config, userConsent) {}
+function onAuctionInit(auctionDetails, config, userConsent) {
+}
 
 function onAuctionEnd(data) {
   delete auctionShapedStatus[data.auctionId];
@@ -468,28 +458,24 @@ function onBidRequest(data) {
       ortb2Imp.ext.mileRTDMeta = {
         skipped: false,
         enabled: true,
-        reason: "",
+        reason: '',
         fetched: true,
       };
     }
 
-    if (ortb2Imp.ext.mileRTDMeta.shaped === undefined)
-      ortb2Imp.ext.mileRTDMeta.shaped = false;
+    if (ortb2Imp.ext.mileRTDMeta.shaped === undefined) ortb2Imp.ext.mileRTDMeta.shaped = false;
 
     for (let j = 0; j < bid.sizes.length; j++) {
       const [width, height] = bid.sizes[j];
       const size = `${width}x${height}`;
 
-      if (vals[key] && vals[key][bidder] && vals[key][bidder][size])
-        updatedSizes.push(bid.sizes[j]);
+      if (vals[key] && vals[key][bidder] && vals[key][bidder][size]) updatedSizes.push(bid.sizes[j]);
       else if (vals[key] !== undefined && vals[key][bidder] !== undefined) {
         ortb2Imp.ext.mileRTDMeta.shaped = true;
 
-        if (ortb2Imp.ext.mileRTDMeta.removed === undefined)
-          ortb2Imp.ext.mileRTDMeta.removed = {};
+        if (ortb2Imp.ext.mileRTDMeta.removed === undefined) ortb2Imp.ext.mileRTDMeta.removed = {};
 
-        if (ortb2Imp.ext.mileRTDMeta.removed[bidder] === undefined)
-          ortb2Imp.ext.mileRTDMeta.removed[bidder] = { [size]: 2 };
+        if (ortb2Imp.ext.mileRTDMeta.removed[bidder] === undefined) ortb2Imp.ext.mileRTDMeta.removed[bidder] = { [size]: 2 };
         else ortb2Imp.ext.mileRTDMeta.removed[bidder][size] = 2;
       } else updatedSizes.push(bid.sizes[j]);
     }
@@ -516,32 +502,27 @@ function onBidRequest(data) {
     logInfo(
       `${LOG_PREFIX}Removed ${sizesRemoved.length} sizes from ad unit code ${adUnit} for ${data.bidderCode}`
     );
-    if (sizesRemoved.length)
-      logInfo(`${LOG_PREFIX}Sizes removed are [${sizesRemoved.join(", ")}]`);
+    if (sizesRemoved.length) logInfo(`${LOG_PREFIX}Sizes removed are [${sizesRemoved.join(', ')}]`);
   });
 }
 
 function onBidResponse(bidResponse, config, userConsent) {}
 
 function init(config) {
-  if (config.params && config.params.granularity === TS_GRANULARITY.SIZE)
-    trafficShapingGranularity = TS_GRANULARITY.SIZE;
+  if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRANULARITY.SIZE;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
 
   logMessage(`${LOG_PREFIX}Initiated with config: `, config);
   // Don't need a catch here because even if it gets rejected due to timeout/failure,
   // The value of rtdDate will be set after the ajax call is completed. This call is just used to
   // call the endpoint asap.
-  fetchRTDData(
-    createRTDDataEndpoint(config.params.siteID),
-    config.params && config.params.timeout
-  ).catch(() => {});
+  fetchRTDData(createRTDDataEndpoint(config.params.siteID), config.params && config.params.timeout).catch(() => {});
 
   return true;
 }
 
 function beforeInit() {
-  submodule("realTimeData", subModuleObj);
+  submodule('realTimeData', subModuleObj);
 }
 
 beforeInit();
