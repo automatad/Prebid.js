@@ -94,6 +94,7 @@
       "jwplayerRtdProvider",
       "medianetRtdProvider",
       "mgidRtdProvider",
+      "mileRtdProvider",
       "mobianRtdProvider",
       "neuwoRtdProvider",
       "oneKeyRtdProvider",

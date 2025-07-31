@@ -11,7 +11,7 @@ import { config } from '../src/config.js'
 
 /** Prebid Event Handlers */
 
-const ADAPTER_CODE = 'automatadAnalytics'
+const ADAPTER_CODE = 'automatadAnalytics';
 const trialCountMilsMapping = [1500, 3000, 5000, 10000];
 
 var isLoggingEnabled; var queuePointer = 0; var retryCount = 0; var timer = null; var __atmtdAnalyticsQueue = []; var qBeingUsed; var qTraversalComplete;
@@ -64,6 +64,11 @@ const processEvents = () => {
             window.atmtdAnalytics.auctionInitHandler(args);
           } else {
             shouldTryAgain = true
+          }
+          break;
+        case EVENTS.AUCTION_END:
+          if (window.atmtdAnalytics && window.atmtdAnalytics.auctionEndHandler) {
+            window.atmtdAnalytics.auctionEndHandler(args);
           }
           break;
         case EVENTS.BID_REQUESTED:
@@ -209,6 +214,14 @@ let atmtdAdapter = Object.assign({}, baseAdapter, {
           self.__atmtdAnalyticsQueue.push([eventType, args])
         }
         break;
+      case EVENTS.AUCTION_END:
+        if (window.atmtdAnalytics && window.atmtdAnalytics.auctionEndHandler && shouldNotPushToQueue) {
+          window.atmtdAnalytics.auctionEndHandler(args);
+        } else {
+          self.prettyLog('warn', `Aggregator not loaded, pushing ${eventType} to que instead ...`);
+          self.__atmtdAnalyticsQueue.push([eventType, args])
+        }
+        break;
       case EVENTS.BID_REQUESTED:
         if (window.atmtdAnalytics && window.atmtdAnalytics.bidRequestedHandler && shouldNotPushToQueue) {
           window.atmtdAnalytics.bidRequestedHandler(args);
@@ -302,7 +315,6 @@ atmtdAdapter.enableAnalytics = function (configuration) {
   }
 
   logMessage(`Automatad Analytics Adapter enabled with sdk config`, window.__atmtdSDKConfig)
-
 
   atmtdAdapter.originEnableAnalytics(configuration)
 };
