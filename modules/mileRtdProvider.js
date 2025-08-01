@@ -197,8 +197,7 @@ function doNotShapeAuction(data, reason) {
   let fetched = !(reason === DISABLED_REASONS.FETCH_TIMEOUT || reason === DISABLED_REASONS.FETCH_FAILED);
 
   logWarn(
-    `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason
-}`
+    `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionID} for reason: ${reason}`
   );
 
   for (let i = 0; i < adUnits.length; i++) {
@@ -234,8 +233,7 @@ function onGetBidRequest(data, callback, config) {
   fetchRTDData(url, timeout)
     .then(() => {
       // rtdData = data.response;
-      if (rtdData && rtdData.schema && rtdData.schema.fields[0] === 'gptAdUnit') isGPTSlotUsedForSchema = tr
-ue;
+      if (rtdData && rtdData.schema && rtdData.schema.fields[0] === 'gptAdUnit') isGPTSlotUsedForSchema = true;
 
       const { shouldBeShaped, reason } = shouldAuctionBeShaped();
 
@@ -477,8 +475,7 @@ function onBidRequest(data) {
 
         if (ortb2Imp.ext.mileRTDMeta.removed === undefined) ortb2Imp.ext.mileRTDMeta.removed = {};
 
-        if (ortb2Imp.ext.mileRTDMeta.removed[bidder] === undefined) ortb2Imp.ext.mileRTDMeta.removed[bidder]
- = { [size]: 2 };
+        if (ortb2Imp.ext.mileRTDMeta.removed[bidder] === undefined) ortb2Imp.ext.mileRTDMeta.removed[bidder] = { [size]: 2 };
         else ortb2Imp.ext.mileRTDMeta.removed[bidder][size] = 2;
       } else updatedSizes.push(bid.sizes[j]);
     }
@@ -512,8 +509,7 @@ function onBidRequest(data) {
 function onBidResponse(bidResponse, config, userConsent) {}
 
 function init(config) {
-  if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRA
-NULARITY.SIZE;
+  if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRANULARITY.SIZE;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
 
   logMessage(`${LOG_PREFIX}Initiated with config: `, config);
@@ -529,4 +525,4 @@ function beforeInit() {
   submodule('realTimeData', subModuleObj);
 }
 
-beforeInit(); 
+beforeInit();
