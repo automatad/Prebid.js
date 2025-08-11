@@ -282,7 +282,6 @@ function makeBidRequestsHook(fn, bidderRequests) {
     logInfo(`${LOG_PREFIX}Traffic shaping enabled - granularity: ${trafficShapingGranularity} :`, bidderRequests.length);
     const vals = rtdData.values;
     const availableKeys = Object.keys(vals || {});
-    logInfo(`${LOG_PREFIX}Traffic shaping available keys:`, availableKeys);
     let modifiedAdUnits = {};
 
     bidderRequests.forEach((bidderRequest) => {
@@ -308,7 +307,6 @@ function makeBidRequestsHook(fn, bidderRequests) {
         if (vals[key]) {
           bidderData = vals[key];
           matchingKey = key;
-          logInfo(`${LOG_PREFIX}Debug: Exact match found for "${key}"`, bidderData);
         } else {
           // Try to find a key that ends with the key
           const foundKey = availableKeys.find(availableKey => 
