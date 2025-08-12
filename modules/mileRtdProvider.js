@@ -178,7 +178,7 @@ function getPushedThroughSSPs() {
   }
 }
 
-function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed = false, userSpecificTSPerformed = false) {
+function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed = false, userSpecificTSPerformed = false, adUnitBasedMileRTDMeta = {}) {
   let ortb2Imp;
   if (bid.ortb2Imp) {
     ortb2Imp = deepClone(bid.ortb2Imp);
@@ -208,6 +208,50 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
     // Only create new object if it doesn't exist
     bid.ortb2Imp = ortb2Imp;
   }
+
+  // Also update the ad unit metadata
+  const adUnitCode = bid.adUnitCode;
+  if (!adUnitBasedMileRTDMeta[adUnitCode]) {
+    adUnitBasedMileRTDMeta[adUnitCode] = {
+      skipped: false,
+      enabled: true,
+      reason: '',
+      fetched: false,
+      shaped: false,
+      removed: [],
+      userSpecificTSEnabled: false,
+      userSpecificTSPerformed: false,
+    };
+  }
+  
+  // Update the ad unit metadata with the bid's metadata
+  adUnitBasedMileRTDMeta[adUnitCode] = {
+    ...adUnitBasedMileRTDMeta[adUnitCode],
+    skipped: skipped || adUnitBasedMileRTDMeta[adUnitCode].skipped,
+    enabled: true,
+    reason: reason || adUnitBasedMileRTDMeta[adUnitCode].reason,
+    fetched: fetched || adUnitBasedMileRTDMeta[adUnitCode].fetched,
+    shaped: shaped || adUnitBasedMileRTDMeta[adUnitCode].shaped,
+    userSpecificTSEnabled: userSpecificTSEnabled || adUnitBasedMileRTDMeta[adUnitCode].userSpecificTSEnabled,
+    userSpecificTSPerformed: userSpecificTSPerformed || adUnitBasedMileRTDMeta[adUnitCode].userSpecificTSPerformed,
+  };
+
+  // Handle the removed field properly - it should be a list of removed bidders
+  if (removed && fetched) {
+    // Only process removed bidders if we have RTD data (traffic shaping was possible)
+    if (!Array.isArray(adUnitBasedMileRTDMeta[adUnitCode].removed)) {
+      adUnitBasedMileRTDMeta[adUnitCode].removed = [];
+    }
+    // Add bidder to the list if not already there
+    if (!adUnitBasedMileRTDMeta[adUnitCode].removed.includes(bid.bidder)) {
+      adUnitBasedMileRTDMeta[adUnitCode].removed.push(bid.bidder);
+    }
+    
+    // If any bidders are removed AND we have RTD data, traffic shaping was applied
+    adUnitBasedMileRTDMeta[adUnitCode].shaped = true;
+  }
+
+  return adUnitBasedMileRTDMeta;
 }
 
 function onAuctionInit(auctionDetails, config, userConsent) {
@@ -251,13 +295,6 @@ function makeBidRequestsHook(fn, bidderRequests) {
     if (!rtdData || !rtdData.values) {
       logWarn(`${LOG_PREFIX}RTD data not available, skipping traffic shaping`);
       logInfo(`${LOG_PREFIX}Debug: rtdData =`, rtdData);
-      // Add mileRTDMeta to all bids when RTD data is not available
-      bidderRequests.forEach((bidderRequest) => {
-        bidderRequest.bids.forEach((bid) => {
-          addMileRTDMeta(bid, true, DISABLED_REASONS.FETCH_FAILED, false, false, false, false);
-        });
-      });
-      return fn(bidderRequests);
     }
 
     // Check if auction should be shaped
@@ -270,19 +307,14 @@ function makeBidRequestsHook(fn, bidderRequests) {
         `${LOG_PREFIX}Traffic shaping has not been enabled for auction with ID ${auctionId} for reason: ${reason}`
       );
       logInfo(`${LOG_PREFIX}Debug: skipRate = ${rtdData?.skipRate}, hasFetchFailed = ${hasFetchFailed}`);
-      // Add mileRTDMeta to all bids when traffic shaping is skipped
-      bidderRequests.forEach((bidderRequest) => {
-        bidderRequest.bids.forEach((bid) => {
-          addMileRTDMeta(bid, true, reason, true, false, false, false);
-        });
-      });
-      return fn(bidderRequests);
     }
 
-    logInfo(`${LOG_PREFIX}Traffic shaping enabled - granularity: ${trafficShapingGranularity} :`, bidderRequests.length);
-    const vals = rtdData.values;
-    const availableKeys = Object.keys(vals || {});
+    // Process all bids regardless of RTD data or traffic shaping status
+    logInfo(`${LOG_PREFIX}Processing bids - traffic shaping enabled: ${shouldBeShaped}, granularity: ${trafficShapingGranularity}`);
+    const vals = rtdData?.values || {};
+    const availableKeys = Object.keys(vals);
     let modifiedAdUnits = {};
+    let adUnitBasedMileRTDMeta = {};
 
     bidderRequests.forEach((bidderRequest) => {
       const bidderCode = bidderRequest.bidderCode;
@@ -291,10 +323,19 @@ function makeBidRequestsHook(fn, bidderRequests) {
       bidderRequest.bids.forEach((bid) => {
         const adUnitCode = bid.adUnitCode;
         const key = getKey(adUnitCode, bid);
+        let shouldProcessBid = true;
+        let skipReason = undefined;
         
+        // Set skip reason if traffic shaping is disabled
+        if (!shouldBeShaped) {
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, true, reason, !!rtdData, false, false, false, adUnitBasedMileRTDMeta);
+          updatedBids.push(bid);
+          return;
+        }
+
         if (!key) {
           // Add mileRTDMeta for bids without a key
-          addMileRTDMeta(bid, false, undefined, true, false, false, false);
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, true, 'No key available', !!rtdData, false, false, false, adUnitBasedMileRTDMeta);
           updatedBids.push(bid);
           return;
         }
@@ -319,15 +360,15 @@ function makeBidRequestsHook(fn, bidderRequests) {
           }
         }
 
+
         if (!bidderData) {
           // No data for this adUnit combination, allow all bids
-          addMileRTDMeta(bid, false, undefined, true, false, false, false);
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, 'No RTD data available', !!rtdData, false, false, false, adUnitBasedMileRTDMeta);
           updatedBids.push(bid);
           return;
         }
 
         // Handle size-wise traffic shaping
-        let shouldIncludeBid = false;
         let shaped = false;
         let removed = false;
         let userSpecificTSPerformed = false;
@@ -375,7 +416,7 @@ function makeBidRequestsHook(fn, bidderRequests) {
               bid.mediaTypes.banner.sizes = filteredBannerSizes;
             }
             
-            shouldIncludeBid = true;
+            shouldProcessBid = true;
             shaped = removedSizesForBid.length > 0; // Bid was shaped if any sizes were removed
             removedSizes = removedSizesForBid;
             
@@ -394,12 +435,12 @@ function makeBidRequestsHook(fn, bidderRequests) {
               removed = true;
             } else if (Array.isArray(bidderInfo.removed) && bidderInfo.removed.length > 0) {
               // Specific sizes are removed, but bidder is still allowed for other sizes
-              shouldIncludeBid = true;
+              shouldProcessBid = true;
               shaped = true; // Bid was shaped (allowed through)
               removedSizes = bidderInfo.removed;
             } else {
               // Bidder is allowed (no removed sizes or removed is false/empty)
-              shouldIncludeBid = true;
+              shouldProcessBid = true;
               shaped = true; // Bid was shaped (allowed through)
             }
           } else {
@@ -412,14 +453,14 @@ function makeBidRequestsHook(fn, bidderRequests) {
           const pushedThroughSSPs = getPushedThroughSSPs();
           if (pushedThroughSSPs && typeof pushedThroughSSPs === 'object' && pushedThroughSSPs[bidderCode]) {
             userSpecificTSPerformed = true;
-            shouldIncludeBid = true;
+            shouldProcessBid = true;
             shaped = true;
           }
         }
 
         // Add mileRTDMeta to bids that are being processed
-        if (shouldIncludeBid) {
-          addMileRTDMeta(bid, false, undefined, true, shaped, removed, userSpecificTSPerformed);
+        if (shouldProcessBid) {
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, skipReason, !!rtdData, shaped, removed, userSpecificTSPerformed, adUnitBasedMileRTDMeta);
           
           // Only track modifications if actual changes occurred
           if (shaped || removedSizes.length > 0) {
@@ -445,9 +486,9 @@ function makeBidRequestsHook(fn, bidderRequests) {
           updatedBids.push(bid);
         } else {
           // Bid was removed, still add metadata
-          addMileRTDMeta(bid, false, undefined, true, false, true, userSpecificTSPerformed);
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, skipReason, !!rtdData, false, true, userSpecificTSPerformed, adUnitBasedMileRTDMeta);
           
-          // Track removed bidder
+          // Track removed bidder in modifiedAdUnits
           if (!modifiedAdUnits[matchingKey]) {
             modifiedAdUnits[matchingKey] = {};
           }
@@ -458,6 +499,22 @@ function makeBidRequestsHook(fn, bidderRequests) {
       // Update the bidder request with filtered bids
       bidderRequest.bids = updatedBids;
     });
+    
+    // Update ad unit metadata
+    logInfo(`${LOG_PREFIX}Debug: adUnitBasedMileRTDMeta:`, adUnitBasedMileRTDMeta);
+
+    Object.keys(adUnitBasedMileRTDMeta).forEach(adUnitCode => {
+      const adUnit = pbjs.adUnits.find(au => au.code === adUnitCode);
+      if (adUnit) {
+        if (!adUnit.ortb2Imp) adUnit.ortb2Imp = {};
+        if (!adUnit.ortb2Imp.ext) adUnit.ortb2Imp.ext = {};
+        if (!adUnit.ortb2Imp.ext.mileRTDMeta) adUnit.ortb2Imp.ext.mileRTDMeta = {};
+        adUnit.ortb2Imp.ext.mileRTDMeta = adUnitBasedMileRTDMeta[adUnitCode];
+      } else {
+        logWarn(`${LOG_PREFIX}Debug: Ad unit not found for adUnitCode: ${adUnitCode}`);
+      }
+    });
+
     logInfo(`${LOG_PREFIX}Debug: modifiedAdUnits:`, modifiedAdUnits);
 
     return fn(bidderRequests);
