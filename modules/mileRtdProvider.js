@@ -255,6 +255,19 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
 }
 
 function onAuctionInit(auctionDetails, config, userConsent) {
+  // Sync auctionDetails.adUnits with the updated pbjs.adUnits from makeBidRequestsHook
+  if (auctionDetails && auctionDetails.adUnits && pbjs.adUnits) {
+    // Update each ad unit in auctionDetails with the corresponding updated one from pbjs.adUnits
+    auctionDetails.adUnits.forEach((adUnit, index) => {
+      const updatedAdUnit = pbjs.adUnits.find(au => au.code === adUnit.code);
+      if (updatedAdUnit && updatedAdUnit.ortb2Imp && updatedAdUnit.ortb2Imp.ext && updatedAdUnit.ortb2Imp.ext.mileRTDMeta) {
+        // Copy the updated mileRTDMeta to the auctionDetails ad unit
+        if (!adUnit.ortb2Imp) adUnit.ortb2Imp = {};
+        if (!adUnit.ortb2Imp.ext) adUnit.ortb2Imp.ext = {};
+        adUnit.ortb2Imp.ext.mileRTDMeta = { ...updatedAdUnit.ortb2Imp.ext.mileRTDMeta };
+      }
+    });
+  }
 }
 
 function onAuctionEnd(data) {
