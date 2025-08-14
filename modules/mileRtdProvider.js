@@ -281,20 +281,20 @@ function init(config) {
   if (config.params && config.params.user) userSpecificTSEnabled = true;
 
   logMessage(`${LOG_PREFIX}Initiated with config: `, config);
-  
-  // Fetch RTD data and register hook after data is available
+
+  // Register the hook immediately so it's available for all auctions
+  adapterManager.makeBidRequests.after(makeBidRequestsHook);
+  logMessage(`${LOG_PREFIX}Hook registered immediately`);
+
+  // Fetch RTD data in the background (non-blocking)
   fetchRTDData(createRTDDataEndpoint(config.params.siteID), config.params && config.params.timeout)
     .then(() => {
-      // Register the hook after RTD data is fetched
-      adapterManager.makeBidRequests.after(makeBidRequestsHook);
-      logMessage(`${LOG_PREFIX}Hook registered after RTD data fetched`);
-      logInfo(`${LOG_PREFIX}Debug: Hook registration complete. Waiting for makeBidRequests to be called...`);
+      logMessage(`${LOG_PREFIX}RTD data fetched successfully`);
+      logInfo(`${LOG_PREFIX}Debug: RTD data available for traffic shaping`);
     })
     .catch((error) => {
-      // Register the hook even if RTD data fetch fails
-      adapterManager.makeBidRequests.after(makeBidRequestsHook);
-      logWarn(`${LOG_PREFIX}RTD data fetch failed, but hook registered:`, error);
-      logInfo(`${LOG_PREFIX}Debug: Hook registration complete (with error). Waiting for makeBidRequests to be called...`);
+      logWarn(`${LOG_PREFIX}RTD data fetch failed:`, error);
+      logInfo(`${LOG_PREFIX}Debug: Traffic shaping will be disabled due to fetch failure`);
     });
 
   return true;
