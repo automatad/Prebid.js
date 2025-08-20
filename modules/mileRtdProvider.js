@@ -218,7 +218,7 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
       reason: '',
       fetched: false,
       shaped: false,
-      removed: [],
+      removed: {},
       userSpecificTSEnabled: false,
       userSpecificTSPerformed: false,
     };
@@ -240,11 +240,11 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
   if (removed && fetched) {
     // Only process removed bidders if we have RTD data (traffic shaping was possible)
     if (!Array.isArray(adUnitBasedMileRTDMeta[adUnitCode].removed)) {
-      adUnitBasedMileRTDMeta[adUnitCode].removed = [];
+      adUnitBasedMileRTDMeta[adUnitCode].removed = {};
     }
     // Add bidder to the list if not already there
-    if (!adUnitBasedMileRTDMeta[adUnitCode].removed.includes(bid.bidder)) {
-      adUnitBasedMileRTDMeta[adUnitCode].removed.push(bid.bidder);
+    if (!adUnitBasedMileRTDMeta[adUnitCode].removed.hasOwnProperty(bid.bidder)) {
+      adUnitBasedMileRTDMeta[adUnitCode].removed[bid.bidder] = 1;
     }
     
     // If any bidders are removed AND we have RTD data, traffic shaping was applied
@@ -265,6 +265,12 @@ function onAuctionInit(auctionDetails, config, userConsent) {
         if (!adUnit.ortb2Imp) adUnit.ortb2Imp = {};
         if (!adUnit.ortb2Imp.ext) adUnit.ortb2Imp.ext = {};
         adUnit.ortb2Imp.ext.mileRTDMeta = { ...updatedAdUnit.ortb2Imp.ext.mileRTDMeta };
+
+        // Filter out bids from removed bidders
+        const removedBidders = Object.keys(updatedAdUnit.ortb2Imp.ext.mileRTDMeta.removed || {});
+        if (removedBidders.length > 0 && adUnit.bids) {
+          adUnit.bids = adUnit.bids.filter(bid => !removedBidders.includes(bid.bidder));
+        }
       }
     });
   }
