@@ -538,7 +538,6 @@ function makeBidRequestsHook(fn, bidderRequests) {
 
     return fn(bidderRequests);
   } catch (error) {
-    console.error(`${LOG_PREFIX}Error in makeBidRequestsHook:`, error);
     // Return the original bidderRequests without modification if there's an error
     return fn(bidderRequests);
   }
