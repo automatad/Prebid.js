@@ -239,7 +239,7 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
   // Handle the removed field properly - it should be a list of removed bidders
   if (removed && fetched) {
     // Only process removed bidders if we have RTD data (traffic shaping was possible)
-    if (!Array.isArray(adUnitBasedMileRTDMeta[adUnitCode].removed)) {
+    if (!adUnitBasedMileRTDMeta[adUnitCode].hasOwnProperty(removed)) {
       adUnitBasedMileRTDMeta[adUnitCode].removed = {};
     }
     // Add bidder to the list if not already there
