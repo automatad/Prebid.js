@@ -50,16 +50,16 @@ const LOG_PREFIX = 'Mile RTD: ';
 let rtdData;
 let hasFetchFailed;
 let fetchTimeOut;
-let trafficShapingGranularity = TS_GRANULARITY.BIDDER;
+let trafficShapingGranularity = TS_GRANULARITY.SIZE;
 let userSpecificTSEnabled = false;
 let rtdFetchPromise;
 
 function getKey(adUnitCode, bid = null) {
   // If we have a bid with gpid (full GPT path), use that for better matching
   if (bid && bid.ortb2Imp && bid.ortb2Imp.ext && bid.ortb2Imp.ext.gpid) {
-    return bid.ortb2Imp.ext.gpid.split('#')[0];
+    return bid.ortb2Imp.ext.gpid;
   }
-  
+
   // Fall back to adUnitCode if no gpid available
   logInfo(`${LOG_PREFIX}Debug: No gpid available, using adUnitCode "${adUnitCode}"`);
   return adUnitCode;
@@ -75,7 +75,7 @@ function shouldAuctionBeShaped() {
 
   const { skipRate } = rtdData;
   const randomNumber = Math.floor(Math.random() * 100);
-  
+
   logInfo(`${LOG_PREFIX}Debug: skipRate = ${skipRate}, randomNumber = ${randomNumber}, comparison: ${randomNumber} >= ${100 - skipRate}`);
 
   // When skipRate is 0, always shape (100% of auctions)
@@ -223,7 +223,7 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
       userSpecificTSPerformed: false,
     };
   }
-  
+
   // Update the ad unit metadata with the bid's metadata
   adUnitBasedMileRTDMeta[adUnitCode] = {
     ...adUnitBasedMileRTDMeta[adUnitCode],
@@ -246,7 +246,7 @@ function addMileRTDMeta(bid, skipped, reason, fetched, shaped = false, removed =
     if (!adUnitBasedMileRTDMeta[adUnitCode].removed.hasOwnProperty(bid.bidder)) {
       adUnitBasedMileRTDMeta[adUnitCode].removed[bid.bidder] = 1;
     }
-    
+
     // If any bidders are removed AND we have RTD data, traffic shaping was applied
     adUnitBasedMileRTDMeta[adUnitCode].shaped = true;
   }
@@ -283,7 +283,7 @@ function onAuctionEnd(data) {
 function onBidResponse(bidResponse, config, userConsent) {}
 
 function init(config) {
-  if (config.params && config.params.granularity === TS_GRANULARITY.SIZE) trafficShapingGranularity = TS_GRANULARITY.SIZE;
+  if (config.params && config.params.granularity === TS_GRANULARITY.BIDDER) trafficShapingGranularity = TS_GRANULARITY.BIDDER;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
 
   logMessage(`${LOG_PREFIX}Initiated with config: `, config);
@@ -309,7 +309,7 @@ function init(config) {
 function makeBidRequestsHook(fn, bidderRequests) {
   try {
     logInfo(`${LOG_PREFIX}Hook triggered! Processing ${bidderRequests.length} bidder requests`);
-    
+
     // Early return if RTD data is not available
     if (!rtdData || !rtdData.values) {
       logWarn(`${LOG_PREFIX}RTD data not available, skipping traffic shaping`);
@@ -331,20 +331,20 @@ function makeBidRequestsHook(fn, bidderRequests) {
     // Process all bids regardless of RTD data or traffic shaping status
     logInfo(`${LOG_PREFIX}Processing bids - traffic shaping enabled: ${shouldBeShaped}, granularity: ${trafficShapingGranularity}`);
     const vals = rtdData?.values || {};
-    const availableKeys = Object.keys(vals);
+
     let modifiedAdUnits = {};
     let adUnitBasedMileRTDMeta = {};
 
     bidderRequests.forEach((bidderRequest) => {
       const bidderCode = bidderRequest.bidderCode;
       const updatedBids = [];
-      
+
       bidderRequest.bids.forEach((bid) => {
         const adUnitCode = bid.adUnitCode;
         const key = getKey(adUnitCode, bid);
         let shouldProcessBid = true;
-        let skipReason = undefined;
-        
+        let skipReason;
+
         // Set skip reason if traffic shaping is disabled
         if (!shouldBeShaped) {
           adUnitBasedMileRTDMeta = addMileRTDMeta(bid, true, reason, !!rtdData, false, false, false, adUnitBasedMileRTDMeta);
@@ -359,26 +359,14 @@ function makeBidRequestsHook(fn, bidderRequests) {
           return;
         }
 
-        // Use endsWith to find matching keys
         let bidderData = null;
-        let matchingKey = key; // Default to the original key
-        
-        // First try exact match
-        if (vals[key]) {
-          bidderData = vals[key];
-          matchingKey = key;
-        } else {
-          // Try to find a key that ends with the key
-          const foundKey = availableKeys.find(availableKey => 
-            availableKey.endsWith(key)
-          );
-
-          if (foundKey) {
-            bidderData = vals[foundKey];
-            matchingKey = foundKey;
-          }
+        let matchingKey = key;
+        if (vals.hasOwnProperty(matchingKey)) {
+          bidderData = vals[matchingKey];
+        } else if (vals.hasOwnProperty(matchingKey.split('#')[0])) {
+          matchingKey = matchingKey.split('#')[0];
+          bidderData = vals[matchingKey];
         }
-
 
         if (!bidderData) {
           // No data for this adUnit combination, allow all bids
@@ -397,13 +385,13 @@ function makeBidRequestsHook(fn, bidderRequests) {
 
         if (trafficShapingGranularity === TS_GRANULARITY.SIZE) {
           const removedSizesForBid = [];
-          
+
           // Capture original sizes BEFORE modification
           originalSizes = bid.mediaTypes?.banner?.sizes || bid.sizes;
 
           bid.mediaTypes.banner.sizes.forEach(([width, height]) => {
             const size = `${width}x${height}`;
-            
+
             // Check if this specific bidder is allowed for this specific size
             // Data format: bidderData[bidderCode][size]
             if (bidderData && typeof bidderData === 'object' && bidderData[bidderCode]) {
@@ -422,7 +410,7 @@ function makeBidRequestsHook(fn, bidderRequests) {
 
           if (filteredSizes.length > 0) {
             bid.sizes = filteredSizes;
-            
+
             // Also filter mediaTypes.banner.sizes if it exists
             if (bid.mediaTypes && bid.mediaTypes.banner && bid.mediaTypes.banner.sizes) {
               const filteredBannerSizes = [];
@@ -434,11 +422,11 @@ function makeBidRequestsHook(fn, bidderRequests) {
               });
               bid.mediaTypes.banner.sizes = filteredBannerSizes;
             }
-            
+
             shouldProcessBid = true;
             shaped = removedSizesForBid.length > 0; // Bid was shaped if any sizes were removed
             removedSizes = removedSizesForBid;
-            
+
             // Size filtering results will be logged per ad unit later
           } else {
             removed = true; // All sizes were removed
@@ -448,7 +436,7 @@ function makeBidRequestsHook(fn, bidderRequests) {
           // For bidder level, simply check if this bidder is allowed
           if (bidderData && bidderData[bidderCode]) {
             const bidderInfo = bidderData[bidderCode];
-            
+
             if (bidderInfo.removed === true) {
               // Entire bidder is removed for this ad unit
               removed = true;
@@ -480,18 +468,18 @@ function makeBidRequestsHook(fn, bidderRequests) {
         // Add mileRTDMeta to bids that are being processed
         if (shouldProcessBid) {
           adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, skipReason, !!rtdData, shaped, removed, userSpecificTSPerformed, adUnitBasedMileRTDMeta);
-          
+
           // Only track modifications if actual changes occurred
           if (shaped || removedSizes.length > 0) {
             if (!modifiedAdUnits[matchingKey]) {
               modifiedAdUnits[matchingKey] = {};
             }
-            
+
             if (trafficShapingGranularity === TS_GRANULARITY.SIZE) {
               // Size granularity: track removed sizes, allowed sizes, and original sizes
               const allowedSizes = filteredSizes;
-              
-              modifiedAdUnits[matchingKey][bidderCode] = { 
+
+              modifiedAdUnits[matchingKey][bidderCode] = {
                 removed: removedSizes,
                 allowedSizes: allowedSizes,
                 actualSizes: originalSizes
@@ -501,12 +489,12 @@ function makeBidRequestsHook(fn, bidderRequests) {
               modifiedAdUnits[matchingKey][bidderCode] = { allowed: true };
             }
           }
-          
+
           updatedBids.push(bid);
         } else {
           // Bid was removed, still add metadata
           adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, skipReason, !!rtdData, false, true, userSpecificTSPerformed, adUnitBasedMileRTDMeta);
-          
+
           // Track removed bidder in modifiedAdUnits
           if (!modifiedAdUnits[matchingKey]) {
             modifiedAdUnits[matchingKey] = {};
@@ -518,7 +506,7 @@ function makeBidRequestsHook(fn, bidderRequests) {
       // Update the bidder request with filtered bids
       bidderRequest.bids = updatedBids;
     });
-    
+
     // Update ad unit metadata
     logInfo(`${LOG_PREFIX}Debug: adUnitBasedMileRTDMeta:`, adUnitBasedMileRTDMeta);
 
