@@ -359,12 +359,17 @@ function makeBidRequestsHook(fn, bidderRequests) {
           return;
         }
 
+        // If user ID providers are mentioned in the rtd 
+
+        if (!rtdData) {
+          adUnitBasedMileRTDMeta = addMileRTDMeta(bid, false, '', !!rtdData, false, false, false, adUnitBasedMileRTDMeta);
+          updatedBids.push(bid);
+          return;
+        }
+
         let bidderData = null;
         let matchingKey = key;
         if (vals.hasOwnProperty(matchingKey)) {
-          bidderData = vals[matchingKey];
-        } else if (vals.hasOwnProperty(matchingKey.split('#')[0])) {
-          matchingKey = matchingKey.split('#')[0];
           bidderData = vals[matchingKey];
         }
 
@@ -452,6 +457,28 @@ function makeBidRequestsHook(fn, bidderRequests) {
             }
           } else {
             removed = true; // Bidder was removed
+          }
+        }
+
+        if (rtdData.hasOwnProperty('userIdVendors')) {
+          const userIDVendorsWhitelist = rtdData.userIdVendors;
+          const enrichedUserIDs = Object.keys(bid.userId);
+          
+          let isUserIDVendorPresent = false
+
+          for (let i = 0; i < enrichedUserIDs.length; i++) {
+            const userId = enrichedUserIDs[i];
+            if (userIDVendorsWhitelist.includes(userId)) {
+              isUserIDVendorPresent = true;
+              break; 
+            }
+          }
+
+          if (!isUserIDVendorPresent) {
+            skipReason = 'User ID vendor not present in whitelist';
+            removed = true; // Bidder was removed
+            shouldProcessBid = false
+            shaped = true
           }
         }
 
