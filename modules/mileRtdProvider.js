@@ -46,13 +46,83 @@ const pbjs = getGlobal();
 
 const RTD_HOST = `https://floors.atmtd.com`;
 const LOG_PREFIX = 'Mile RTD: ';
+const FLOORS_FETCH_INTERVAL = 4 * 60 * 1000; // 4 minutes
 
 let rtdData;
+let siteID;
+let pubID;
 let hasFetchFailed;
 let fetchTimeOut;
 let trafficShapingGranularity = TS_GRANULARITY.SIZE;
 let userSpecificTSEnabled = false;
 let rtdFetchPromise;
+
+const createFloorsDataEndpoint = (siteID, pubID) => {
+  return `${RTD_HOST}/floors.json?${siteID ? `siteID=${siteID}` : pubID ? `pubID=${pubID}` : ''}`;
+}
+
+const floors = {
+  promise: null,
+  data: null,
+  lastFetchedAt: 0,
+  fetch: function() {
+    if (this.promise) {
+      logWarn(`${LOG_PREFIX}Floors fetch already in progress. Skipping this call.`);
+      return this.promise;
+    }
+
+    const now = Date.now();
+
+    if (now - this.lastFetchedAt < FLOORS_FETCH_INTERVAL) {
+      logWarn(`${LOG_PREFIX}Using initial floors data since last fetch was less than ${FLOORS_FETCH_INTERVAL}ms ago`);
+      return this.data;
+    }
+
+    const self = this;
+
+    this.promise = new Promise((resolve, reject) => {
+      ajax(createFloorsDataEndpoint(siteID, pubID), {
+        success: function(response) {
+          try {
+            self.data = JSON.parse(response);
+          } catch (e) {
+            reject(new Error(`Failed to parse floors data. Response: ${response}`));
+          }
+          self.lastFetchedAt = now;
+          resolve(self.data);
+        },
+        error: function(error) {
+          reject(error);
+        }
+      })
+    });
+
+    return this.promise
+  }
+}
+
+function configureFloorsForPrebidAuctions() {
+  floors.fetch()
+    .then((data) => {
+      logMessage(`${LOG_PREFIX}Floors data fetched successfully`, data);
+
+      // Check for floors enforcement in response 
+      const isEnforced = false;
+
+      const config = {
+        data: data,
+        enforcement: {
+          enforceJS: isEnforced,
+        },
+      }
+
+      pbjs.setConfig({
+        floors: config,
+      });
+    }).catch((error) => {
+      logWarn(`${LOG_PREFIX}Floors data fetch failed:`, error);
+    });
+}
 
 function getKey(adUnitCode, bid = null) {
   // If we have a bid with gpid (full GPT path), use that for better matching
@@ -286,6 +356,11 @@ function init(config) {
   if (config.params && config.params.granularity === TS_GRANULARITY.BIDDER) trafficShapingGranularity = TS_GRANULARITY.BIDDER;
   if (config.params && config.params.user) userSpecificTSEnabled = true;
 
+  // Set siteID and pubID for floors functionality
+  // Note: pubID is optional for now, only siteID is used
+  siteID = config.params && config.params.siteID;
+  pubID = config.params && config.params.pubID;
+
   logMessage(`${LOG_PREFIX}Initiated with config: `, config);
 
   // Register the hook immediately so it's available for all auctions
@@ -302,6 +377,9 @@ function init(config) {
       logWarn(`${LOG_PREFIX}RTD data fetch failed:`, error);
       logInfo(`${LOG_PREFIX}Debug: Traffic shaping will be disabled due to fetch failure`);
     });
+
+  // Configure floors for Prebid auctions
+  configureFloorsForPrebidAuctions();
 
   return true;
 }
