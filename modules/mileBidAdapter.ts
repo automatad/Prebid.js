@@ -39,9 +39,9 @@ export function getLowestFloorPrice(bid) {
     if (typeof bid.getFloor === 'function') {
         // Get floor prices for each banner size in the bid request
         const sizes = deepAccess(bid, 'mediaTypes.banner.sizes');
-        sizes.forEach((size: string) => {
-            const [w, h] = size.split('x');
-            const floor = bid.getFloor({ currency: 'USD', mediaType: '*', size: [parseInt(w), parseInt(h)] });
+        sizes.forEach((size: string | number[]) => {
+            const [w, h] = typeof size === 'string' ? size.split('x') : size as number[];
+            const floor = bid.getFloor({ currency: 'USD', mediaType: '*', size: [Number(w), Number(h)] });
             if (floor && floor.floor) {
                 floorPrice = Math.min(floorPrice, floor.floor);
             }
