@@ -14,7 +14,7 @@ import { ajax } from '../src/ajax.js';
 
 const BIDDER_CODE = 'mile';
 
-const MILE_BIDDER_HOST = 'https://pbs.mile.so';
+const MILE_BIDDER_HOST = 'https://us-east-pbs-v2.automatad.com/';
 
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
