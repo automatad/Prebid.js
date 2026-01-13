@@ -2,6 +2,7 @@ import { type BidderSpec, registerBidder } from '../src/adapters/bidderFactory.j
 import { BANNER } from '../src/mediaTypes.js';
 import { deepAccess, deepSetValue, generateUUID, logInfo, logError } from '../src/utils.js';
 import { getDNT } from '../libraries/dnt/index.js';
+import { ajax } from '../src/ajax.js';
 
 /**
  * Mile Bid Adapter
@@ -354,23 +355,15 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
 
   /**
    * Called when a bid from this adapter wins the auction.
+   * Sends an XHR POST request to the bid's nurl (win notification URL).
    * 
    * @param bid - The winning bid object
    */
   onBidWon: function (bid) {
     logInfo(`${BIDDER_CODE}: Bid won`, bid);
-    // TODO: Implement win notification if needed
-    // For example, fire a pixel or send analytics
-  },
 
-  /**
-   * Called when the adapter encounters an error.
-   * 
-   * @param error - The error object containing error details and request info
-   */
-  onBidderError: function (error) {
-    logError(`${BIDDER_CODE}: Bidder error`, error);
-    // TODO: Implement error handling/reporting if needed
+    // @ts-expect-error - bid.nurl is not defined
+    ajax(bid.nurl, null, null, { method: 'GET' });
   },
 };
 
