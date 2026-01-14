@@ -14,7 +14,7 @@ import { ajax } from '../src/ajax.js';
 
 const BIDDER_CODE = 'mile';
 
-const MILE_BIDDER_HOST = 'https://us-east-pbs-v2.automatad.com/';
+const MILE_BIDDER_HOST = 'https://pbs.atmtd.com';
 
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
@@ -307,8 +307,7 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
   ) {
 
     logInfo(`${BIDDER_CODE}: getUserSyncs called`, { 
-        iframeEnabled: syncOptions.iframeEnabled, 
-        pixelEnabled: syncOptions.pixelEnabled 
+        iframeEnabled: syncOptions.iframeEnabled
     });
 
     const syncs = [];
@@ -337,15 +336,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
 
     const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
 
-    // Iframe sync (preferred for cookie syncing)
     if (syncOptions.iframeEnabled) {
       syncs.push({
         type: 'iframe' as const,
-        url: `${USER_SYNC_ENDPOINT}${queryString}`,
-      });
-    } else if (syncOptions.pixelEnabled) {
-      syncs.push({
-        type: 'image' as const,
         url: `${USER_SYNC_ENDPOINT}${queryString}`,
       });
     }
