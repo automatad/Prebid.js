@@ -15,9 +15,10 @@ import { ajax } from '../src/ajax.js';
 const BIDDER_CODE = 'mile';
 
 const MILE_BIDDER_HOST = 'https://pbs.atmtd.com';
-
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
+
+const MILE_BID_NOTIFICATION_ENDPOINT = `https://e01.dev.mile.so/bidanalytics-event/json`;
 
 type MileBidParams = {
   placementId: string;
@@ -117,7 +118,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
                 }))
             },
             ext: {
-                placementId: bid.params.placementId,  
+              adUnitCode: bid.adUnitCode,
+              placementId: bid.params.placementId,
+              gpid: deepAccess(bid, 'ortb2Imp.ext.gpid') || deepAccess(bid, 'ortb2Imp.ext.data.pbadslot'),
             },
         };
 
@@ -270,6 +273,7 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
           meta: {
             advertiserDomains: bid.adomain || [],
           },
+          gpid: deepAccess(bid, 'ortb2Imp.ext.gpid') || deepAccess(bid, 'ortb2Imp.ext.data.pbadslot'),
         };
 
         // Handle nurl (win notice URL) if present
@@ -354,6 +358,20 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
    */
   onBidWon: function (bid) {
     logInfo(`${BIDDER_CODE}: Bid won`, bid);
+
+    const winNotificationData = {
+      adUnitCode: bid.adUnitCode,
+      metaData: {
+        impressionID: bid.requestId,
+      }, 
+      ua: navigator.userAgent,
+      timestamp: Date.now(),  
+      winningSize: `${bid.width}x${bid.height}`, 
+      cpm: bid.cpm,
+      eventType: 'mile-bidder-win-notify'
+    }
+
+    ajax(MILE_BID_NOTIFICATION_ENDPOINT, null, winNotificationData, { method: 'POST'});
 
     // @ts-expect-error - bid.nurl is not defined
     ajax(bid.nurl, null, null, { method: 'GET' });
