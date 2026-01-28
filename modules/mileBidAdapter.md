@@ -8,19 +8,15 @@ Maintainer: your-email@example.com
 
 # Description
 
-This adapter connects to the Mile Prebid Server for bidding and user synchronization.
-
-# Features
-
-- User syncs via cookie sync endpoint
-- Support for Banner, Video, and Native media types
-- GDPR, CCPA, and GPP consent handling
+This adapter connects to Mile demand sources.
 
 # Bid Params
 
 | Name          | Scope    | Description                       | Example          | Type   |
 |---------------|----------|-----------------------------------|------------------|--------|
 | `placementId` | required | The placement ID for the ad unit  | `'12345'`        | string |
+| `siteId`      | required | The site ID for the publisher     | `'site123'`      | string |
+| `publisherId` | required | The publisher ID                  | `'pub456'`       | string |
 
 # Example Configuration
 
@@ -35,7 +31,9 @@ var adUnits = [{
     bids: [{
         bidder: 'mile',
         params: {
-            placementId: '12345'
+            placementId: '12345',
+            siteId: 'site123',
+            publisherId: 'pub456'
         }
     }]
 }];
@@ -48,8 +46,7 @@ To enable user syncing, configure Prebid.js with:
 ```javascript
 pbjs.setConfig({
     userSync: {
-        iframeEnabled: true, // Enable iframe syncs (recommended)
-        pixelEnabled: true,  // Enable pixel syncs
+        iframeEnabled: true, // Enable iframe syncs 
         filterSettings: {
             iframe: {
                 bidders: ['mile'],
@@ -73,7 +70,9 @@ var adUnits = [{
     bids: [{
         bidder: 'mile',
         params: {
-            placementId: 'test-placement-id'
+            placementId: 'test-placement-id',
+            siteId: 'test-site-id',
+            publisherId: 'test-publisher-id'
         }
     }]
 }];

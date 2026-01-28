@@ -14,10 +14,11 @@ import { ajax } from '../src/ajax.js';
 
 const BIDDER_CODE = 'mile';
 
-const MILE_BIDDER_HOST = 'https://us-east-pbs-v2.automatad.com/';
-
+const MILE_BIDDER_HOST = 'https://pbs.atmtd.com';
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
+
+const MILE_ANALYTICS_ENDPOINT = `https://e01.atmtd.com/bidanalytics-event/json`;
 
 type MileBidParams = {
   placementId: string;
@@ -35,7 +36,7 @@ export let siteIdTracker : string | undefined = undefined;
 export let publisherIdTracker : string | undefined = undefined;
 
 export function getLowestFloorPrice(bid) {
-    let floorPrice: number = 0; 
+    let floorPrice: number; 
 
     if (typeof bid.getFloor === 'function') {
         // Get floor prices for each banner size in the bid request
@@ -44,10 +45,16 @@ export function getLowestFloorPrice(bid) {
             const [w, h] = typeof size === 'string' ? size.split('x') : size as number[];
             const floor = bid.getFloor({ currency: 'USD', mediaType: '*', size: [Number(w), Number(h)] });
             if (floor && floor.floor) {
+              if (floorPrice === undefined) {
+                floorPrice = floor.floor;
+              } else {
                 floorPrice = Math.min(floorPrice, floor.floor);
+              }
             }
         });
-    } 
+    } else {
+      floorPrice = 0
+    }
 
     return floorPrice
 }
@@ -117,7 +124,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
                 }))
             },
             ext: {
-                placementId: bid.params.placementId,  
+              adUnitCode: bid.adUnitCode,
+              placementId: bid.params.placementId,
+              gpid: deepAccess(bid, 'ortb2Imp.ext.gpid') || deepAccess(bid, 'ortb2Imp.ext.data.pbadslot'),
             },
         };
 
@@ -269,7 +278,7 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
           mediaType: BANNER,
           meta: {
             advertiserDomains: bid.adomain || [],
-          },
+          }
         };
 
         // Handle nurl (win notice URL) if present
@@ -307,8 +316,7 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
   ) {
 
     logInfo(`${BIDDER_CODE}: getUserSyncs called`, { 
-        iframeEnabled: syncOptions.iframeEnabled, 
-        pixelEnabled: syncOptions.pixelEnabled 
+        iframeEnabled: syncOptions.iframeEnabled
     });
 
     const syncs = [];
@@ -337,15 +345,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
 
     const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
 
-    // Iframe sync (preferred for cookie syncing)
     if (syncOptions.iframeEnabled) {
       syncs.push({
         type: 'iframe' as const,
-        url: `${USER_SYNC_ENDPOINT}${queryString}`,
-      });
-    } else if (syncOptions.pixelEnabled) {
-      syncs.push({
-        type: 'image' as const,
         url: `${USER_SYNC_ENDPOINT}${queryString}`,
       });
     }
@@ -362,8 +364,53 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
   onBidWon: function (bid) {
     logInfo(`${BIDDER_CODE}: Bid won`, bid);
 
+    const winNotificationData = {
+      adUnitCode: bid.adUnitCode,
+      metaData: {
+        impressionID: [bid.requestId],
+      }, 
+      ua: navigator.userAgent,
+      timestamp: Date.now(),  
+      winningSize: `${bid.width}x${bid.height}`, 
+      cpm: bid.cpm,
+      eventType: 'mile-bidder-win-notify'
+    }
+
+    ajax(MILE_ANALYTICS_ENDPOINT, null, JSON.stringify([winNotificationData]), { method: 'POST'});
+
     // @ts-expect-error - bid.nurl is not defined
     ajax(bid.nurl, null, null, { method: 'GET' });
+  },
+
+  /**
+   * Called when bid requests timeout.
+   * Sends analytics notification for timed out bids.
+   * 
+   * @param timeoutData - Array of bid requests that timed out
+   */
+  onTimeout: function (timeoutData) {
+    logInfo(`${BIDDER_CODE}: Timeout for ${timeoutData.length} bid(s)`, timeoutData);
+
+    if (timeoutData.length === 0) return; 
+
+    const timedOutBids = [];
+
+    timeoutData.forEach((bid) => {
+      const timeoutNotificationData = {
+        adUnitCode: bid.adUnitCode,
+        metaData: {
+          impressionID: [bid.bidId],
+          configuredTimeout: [bid.timeout.toString()],
+        },
+        ua: navigator.userAgent,
+        timestamp: Date.now(),
+        eventType: 'mile-bidder-timeout'
+      };
+
+      timedOutBids.push(timeoutNotificationData);
+    });
+
+    ajax(MILE_ANALYTICS_ENDPOINT, null, JSON.stringify(timedOutBids), { method: 'POST'});
   },
 };
 
