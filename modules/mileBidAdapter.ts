@@ -18,7 +18,7 @@ const MILE_BIDDER_HOST = 'https://pbs.atmtd.com';
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
 
-const MILE_ANALYTICS_ENDPOINT = `https://e01-dev.mile.so/bidanalytics-event/json`;
+const MILE_ANALYTICS_ENDPOINT = `https://e01.atmtd.com/bidanalytics-event/json`;
 
 type MileBidParams = {
   placementId: string;

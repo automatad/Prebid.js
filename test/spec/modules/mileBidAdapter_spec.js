@@ -534,7 +534,7 @@ describe('mileBidAdapter', function () {
       
       // First call to notification endpoint
       const firstCall = ajaxStub.getCall(0);
-      expect(firstCall.args[0]).to.equal('https://e01-dev.mile.so/bidanalytics-event/json');
+      expect(firstCall.args[0]).to.equal('https://e01.atmtd.com/bidanalytics-event/json');
       
       // Second call to nurl
       const secondCall = ajaxStub.getCall(1);
@@ -611,7 +611,7 @@ describe('mileBidAdapter', function () {
       spec.onTimeout(timeoutData);
 
       const firstCall = ajaxStub.getCall(0);
-      expect(firstCall.args[0]).to.equal('https://e01-dev.mile.so/bidanalytics-event/json');
+      expect(firstCall.args[0]).to.equal('https://e01.atmtd.com/bidanalytics-event/json');
 
       const notificationData = JSON.parse(firstCall.args[2])[0];
       expect(notificationData.adUnitCode).to.equal('test-ad-unit-1');
