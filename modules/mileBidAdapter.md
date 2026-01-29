@@ -3,12 +3,12 @@
 ```
 Module Name: Mile Bid Adapter
 Module Type: Bidder Adapter
-Maintainer: your-email@example.com
+Maintainer: tech@mile.tech
 ```
 
 # Description
 
-This adapter connects to Mile demand sources.
+This bidder adapter connects to Mile demand sources.
 
 # Bid Params
 

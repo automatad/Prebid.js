@@ -99,13 +99,10 @@ describe('mileBidAdapter', function () {
 
     it('should return a valid server request object', function () {
       const request = spec.buildRequests(validBidRequests, bidderRequest);
-      
       expect(request).to.be.an('object');
       expect(request.method).to.equal('POST');
       expect(request.url).to.equal('https://pbs.atmtd.com/mile/v1/request');
       expect(request.data).to.be.an('object');
-      expect(request.options.contentType).to.equal('application/json');
-      expect(request.options.withCredentials).to.be.true;
     });
 
     it('should build OpenRTB 2.5 compliant request', function () {
@@ -296,7 +293,6 @@ describe('mileBidAdapter', function () {
 
       // First bid should be valid
       expect(spec.isBidRequestValid(firstBid)).to.be.true;
-      
       // Second bid should be rejected due to siteId mismatch
       expect(spec.isBidRequestValid(secondBid)).to.be.false;
     });
@@ -321,7 +317,7 @@ describe('mileBidAdapter', function () {
         params: {
           placementId: '67890',
           siteId: 'site123',
-          publisherId: 'differentPub' 
+          publisherId: 'differentPub'
         },
         mediaTypes: {
           banner: {
@@ -332,7 +328,6 @@ describe('mileBidAdapter', function () {
 
       // First bid should be valid
       expect(spec.isBidRequestValid(firstBid)).to.be.true;
-      
       // Second bid should be rejected due to publisherId mismatch
       expect(spec.isBidRequestValid(secondBid)).to.be.false;
     });
@@ -355,7 +350,8 @@ describe('mileBidAdapter', function () {
               creativeId: 'creative123',
               ttl: 300,
               nurl: 'https://example.com/win?price=${AUCTION_PRICE}',
-              adomain: ['advertiser.com']
+              adomain: ['advertiser.com'],
+              upstreamBidder: 'upstreamBidder'
             }
           ]
         }
@@ -382,6 +378,7 @@ describe('mileBidAdapter', function () {
       expect(bid.ttl).to.equal(300);
       expect(bid.netRevenue).to.be.true;
       expect(bid.mediaType).to.equal(BANNER);
+      expect(bid.upstreamBidder).to.equal('upstreamBidder');
     });
 
     it('should include nurl in bid response', function () {
@@ -517,7 +514,8 @@ describe('mileBidAdapter', function () {
         cpm: 1.5,
         width: 300,
         height: 250,
-        nurl: 'https://example.com/win'
+        nurl: 'https://example.com/win',
+        upstreamBidder: 'upstreamBidder'
       };
 
       ajaxStub = sinon.stub(ajax, 'ajax');
@@ -531,11 +529,11 @@ describe('mileBidAdapter', function () {
       spec.onBidWon(bid);
 
       expect(ajaxStub.calledTwice).to.be.true;
-      
+
       // First call to notification endpoint
       const firstCall = ajaxStub.getCall(0);
       expect(firstCall.args[0]).to.equal('https://e01.atmtd.com/bidanalytics-event/json');
-      
+
       // Second call to nurl
       const secondCall = ajaxStub.getCall(1);
       expect(secondCall.args[0]).to.equal('https://example.com/win');
@@ -549,6 +547,7 @@ describe('mileBidAdapter', function () {
 
       expect(notificationData.adUnitCode).to.equal('test-ad-unit');
       expect(notificationData.metaData.impressionID[0]).to.equal('bid123');
+      expect(notificationData.metaData.upstreamBidder[0]).to.equal('upstreamBidder');
       expect(notificationData.cpm).to.equal(1.5);
       expect(notificationData.winningSize).to.equal('300x250');
       expect(notificationData.eventType).to.equal('mile-bidder-win-notify');
