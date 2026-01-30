@@ -281,8 +281,10 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
         meta: {
           advertiserDomains: bid.adomain || [],
           upstreamBidder: bid.upstreamBidder || '',
-          siteID: deepAccess(response, 'site.id') || '',
-          publisherID: deepAccess(response, 'site.publisher.id') || ''
+          siteUID: deepAccess(response, 'site.id') || '',
+          publisherID: deepAccess(response, 'site.publisher.id') || '',
+          page: deepAccess(response, 'site.page') || '',
+          domain: deepAccess(response, 'site.domain') || '',
         }
       };
 
@@ -379,7 +381,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
       eventType: 'mile-bidder-win-notify',
       winningBidder: deepAccess(bid, 'meta.upstreamBidder') || '',
       siteUID: deepAccess(bid, 'meta.siteUID') || '',
-      yetiPublisherID: deepAccess(bid, 'meta.publisherID') || ''
+      yetiPublisherID: deepAccess(bid, 'meta.publisherID') || '',
+      page: deepAccess(bid, 'meta.page') || '',
+      site: deepAccess(bid, 'meta.domain') || '',
     }
 
     ajax(MILE_ANALYTICS_ENDPOINT, null, JSON.stringify([winNotificationData]), { method: 'POST'});

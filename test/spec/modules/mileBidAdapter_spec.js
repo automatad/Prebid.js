@@ -341,9 +341,11 @@ describe('mileBidAdapter', function () {
         body: {
           site: {
             id: 'site123',
+            domain: 'example.com',
             publisher: {
               id: 'pub456'
-            }
+            },
+            page: 'https://example.com/page',
           },
           cur: 'USD',
           bids: [
@@ -385,8 +387,10 @@ describe('mileBidAdapter', function () {
       expect(bid.netRevenue).to.be.true;
       expect(bid.mediaType).to.equal(BANNER);
       expect(bid.meta.upstreamBidder).to.equal('upstreamBidder');
-      expect(bid.meta.siteID).to.equal('site123');
+      expect(bid.meta.siteUID).to.equal('site123');
       expect(bid.meta.publisherID).to.equal('pub456');
+      expect(bid.meta.page).to.equal('https://example.com/page');
+      expect(bid.meta.domain).to.equal('example.com');
     });
 
     it('should include nurl in bid response', function () {
@@ -444,8 +448,10 @@ describe('mileBidAdapter', function () {
       delete serverResponse.body.publisher;
       const bids = spec.interpretResponse(serverResponse);
 
-      expect(bids[0].meta.siteID).to.be.empty;
+      expect(bids[0].meta.siteUID).to.be.empty;
       expect(bids[0].meta.publisherID).to.be.empty;
+      expect(bids[0].meta.page).to.be.empty;
+      expect(bids[0].meta.domain).to.be.empty;
     });
   });
 
@@ -535,7 +541,9 @@ describe('mileBidAdapter', function () {
         meta: {
           upstreamBidder: 'upstreamBidder',
           siteUID: 'mRUDIL',
-          publisherID: 'pub456'
+          publisherID: 'pub456',
+          page: 'https://example.com/page',
+          domain: 'example.com'
         }
       };
 
@@ -575,6 +583,8 @@ describe('mileBidAdapter', function () {
       expect(notificationData.timestamp).to.be.a('number');
       expect(notificationData.siteUID).to.equal('mRUDIL');
       expect(notificationData.yetiPublisherID).to.equal('pub456');
+      expect(notificationData.page).to.equal('https://example.com/page');
+      expect(notificationData.site).to.equal('example.com');
     });
 
     it('should call nurl with GET request', function () {
