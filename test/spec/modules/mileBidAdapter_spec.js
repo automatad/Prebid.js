@@ -339,6 +339,12 @@ describe('mileBidAdapter', function () {
     beforeEach(function () {
       serverResponse = {
         body: {
+          site: {
+            id: 'site123',
+            publisher: {
+              id: 'pub456'
+            }
+          },
           cur: 'USD',
           bids: [
             {
@@ -378,7 +384,9 @@ describe('mileBidAdapter', function () {
       expect(bid.ttl).to.equal(300);
       expect(bid.netRevenue).to.be.true;
       expect(bid.mediaType).to.equal(BANNER);
-      expect(bid.upstreamBidder).to.equal('upstreamBidder');
+      expect(bid.meta.upstreamBidder).to.equal('upstreamBidder');
+      expect(bid.meta.siteID).to.equal('site123');
+      expect(bid.meta.publisherID).to.equal('pub456');
     });
 
     it('should include nurl in bid response', function () {
@@ -429,6 +437,15 @@ describe('mileBidAdapter', function () {
       const bids = spec.interpretResponse(serverResponse);
 
       expect(bids[0].currency).to.equal('USD');
+    });
+
+    it('should handle response with no site or publisher', function () {
+      delete serverResponse.body.site;
+      delete serverResponse.body.publisher;
+      const bids = spec.interpretResponse(serverResponse);
+
+      expect(bids[0].meta.siteID).to.be.empty;
+      expect(bids[0].meta.publisherID).to.be.empty;
     });
   });
 
@@ -515,7 +532,11 @@ describe('mileBidAdapter', function () {
         width: 300,
         height: 250,
         nurl: 'https://example.com/win',
-        upstreamBidder: 'upstreamBidder'
+        meta: {
+          upstreamBidder: 'upstreamBidder',
+          siteUID: 'mRUDIL',
+          publisherID: 'pub456'
+        }
       };
 
       ajaxStub = sinon.stub(ajax, 'ajax');
@@ -547,11 +568,13 @@ describe('mileBidAdapter', function () {
 
       expect(notificationData.adUnitCode).to.equal('test-ad-unit');
       expect(notificationData.metaData.impressionID[0]).to.equal('bid123');
-      expect(notificationData.metaData.upstreamBidder[0]).to.equal('upstreamBidder');
+      expect(notificationData.winningBidder).to.equal('upstreamBidder');
       expect(notificationData.cpm).to.equal(1.5);
       expect(notificationData.winningSize).to.equal('300x250');
       expect(notificationData.eventType).to.equal('mile-bidder-win-notify');
       expect(notificationData.timestamp).to.be.a('number');
+      expect(notificationData.siteUID).to.equal('mRUDIL');
+      expect(notificationData.publisherID).to.equal('pub456');
     });
 
     it('should call nurl with GET request', function () {

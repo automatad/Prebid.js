@@ -278,9 +278,11 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
         ttl: bid.ttl || 300,
         ad: bid.ad,
         mediaType: BANNER,
-        upstreamBidder: bid.upstreamBidder || '',
         meta: {
           advertiserDomains: bid.adomain || [],
+          upstreamBidder: bid.upstreamBidder || '',
+          siteID: deepAccess(response, 'site.id') || '',
+          publisherID: deepAccess(response, 'site.publisher.id') || ''
         }
       };
 
@@ -369,14 +371,15 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
       adUnitCode: bid.adUnitCode,
       metaData: {
         impressionID: [bid.requestId],
-        // @ts-expect-error - bid.upstreamBidder is not defined
-        upstreamBidder: [bid.upstreamBidder || ''],
       },
       ua: navigator.userAgent,
       timestamp: Date.now(),
       winningSize: `${bid.width}x${bid.height}`,
       cpm: bid.cpm,
-      eventType: 'mile-bidder-win-notify'
+      eventType: 'mile-bidder-win-notify',
+      winningBidder: deepAccess(bid, 'meta.upstreamBidder') || '',
+      siteUID: deepAccess(bid, 'meta.siteUID') || '',
+      publisherID: deepAccess(bid, 'meta.publisherID') || ''
     }
 
     ajax(MILE_ANALYTICS_ENDPOINT, null, JSON.stringify([winNotificationData]), { method: 'POST'});
