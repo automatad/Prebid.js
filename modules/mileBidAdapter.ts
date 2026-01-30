@@ -379,7 +379,7 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
       eventType: 'mile-bidder-win-notify',
       winningBidder: deepAccess(bid, 'meta.upstreamBidder') || '',
       siteUID: deepAccess(bid, 'meta.siteUID') || '',
-      publisherID: deepAccess(bid, 'meta.publisherID') || ''
+      yetiPublisherID: deepAccess(bid, 'meta.publisherID') || ''
     }
 
     ajax(MILE_ANALYTICS_ENDPOINT, null, JSON.stringify([winNotificationData]), { method: 'POST'});

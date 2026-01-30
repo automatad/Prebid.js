@@ -574,7 +574,7 @@ describe('mileBidAdapter', function () {
       expect(notificationData.eventType).to.equal('mile-bidder-win-notify');
       expect(notificationData.timestamp).to.be.a('number');
       expect(notificationData.siteUID).to.equal('mRUDIL');
-      expect(notificationData.publisherID).to.equal('pub456');
+      expect(notificationData.yetiPublisherID).to.equal('pub456');
     });
 
     it('should call nurl with GET request', function () {
