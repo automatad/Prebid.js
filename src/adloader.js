@@ -38,6 +38,7 @@ const _approvedLoadExternalJSList = [
   'anonymised',
   'optable',
   'oftmedia',
+  'mile',
   // UserId Submodules
   'justtag',
   'tncId',
