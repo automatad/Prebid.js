@@ -17,6 +17,27 @@ const DEFAULT_ENGINE_GLOBAL = "mileRtdRuntime";
 let moduleParams = {};
 let engineLoadPromise = null;
 
+function isFlooringEnforcedForAuction(auctionDetails = {}) {
+  const bidderRequestBids = (auctionDetails?.bidderRequests || []).flatMap((request) => request?.bids || []);
+  const bidsReceived = auctionDetails?.bidsReceived || [];
+  const allBids = [...bidderRequestBids, ...bidsReceived];
+  return allBids.some((bid) => {
+    const floorData = bid?.floorData;
+    if (!floorData) return false;
+
+    const enforceJS = floorData?.enforcements?.enforceJS;
+    if (typeof enforceJS === "boolean") {
+      return enforceJS;
+    }
+
+    // Some floor data payloads only expose signal/skip flags.
+    if (floorData?.skipped === false && floorData?.noFloorSignaled === false) {
+      return true;
+    }
+    return false;
+  });
+}
+
 function getRuntimeEngine() {
   const globalName = moduleParams?.runtimeGlobalName || DEFAULT_ENGINE_GLOBAL;
   return window?.[globalName];
@@ -82,7 +103,14 @@ function buildAuctionDetailsFromAuction(auction) {
 }
 
 function getRuntimeUtils() {
-  return window?.mileRtdRuntimeUtils;
+  if (window?.mileRtdRuntimeUtils) {
+    return window.mileRtdRuntimeUtils;
+  }
+  const runtimeEngine = getRuntimeEngine();
+  if (runtimeEngine && (runtimeEngine.extractAuctionSnapshot || runtimeEngine.applyRuntimeTargeting)) {
+    return runtimeEngine;
+  }
+  return null;
 }
 
 function extractAuctionSnapshot(auctionDetails = {}) {
@@ -117,6 +145,10 @@ export function onAuctionInitEvent(auctionDetails = {}) {
       auctionManager.index.getAuction({ auctionId: auctionManager.getLastAuctionId() })
     );
   if (!snapshotDetails?.adUnitCodes?.length) return;
+  if (!isFlooringEnforcedForAuction(snapshotDetails)) {
+    logInfo(LOG_PREFIX, "skipping targeting; floor enforcement is disabled");
+    return;
+  }
   const auctionSnapshot = extractAuctionSnapshot(snapshotDetails);
   applyRuntimeTargeting(auctionSnapshot, { mode: "auctionInit" });
 }
@@ -126,6 +158,10 @@ export function onBidResponseEvent(bidResponse, config, userConsent, auctionDeta
   if (!adUnitCode) return;
   const auctionDetails =
     auctionDetailsOverride || buildAuctionDetailsFromAuction(auctionManager.index.getAuction(bidResponse || {}));
+  if (!isFlooringEnforcedForAuction(auctionDetails)) {
+    logInfo(LOG_PREFIX, "skipping targeting; floor enforcement is disabled");
+    return;
+  }
   const auctionSnapshot = extractAuctionSnapshot(auctionDetails);
   if (!auctionSnapshot.adUnitCodes?.includes(adUnitCode)) {
     auctionSnapshot.adUnitCodes = [...(auctionSnapshot.adUnitCodes || []), adUnitCode];
