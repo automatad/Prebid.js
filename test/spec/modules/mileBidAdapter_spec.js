@@ -100,7 +100,7 @@ describe('mileBidAdapter', function () {
 
       expect(request).to.be.an('object');
       expect(request.method).to.equal('POST');
-      expect(request.url).to.equal('https://pbs.atmtd.com/mile/v1/request');
+      expect(request.url).to.equal('https://staging-pbs.mile.so/mile/v1/request');
       expect(request.data).to.be.an('object');
     });
 

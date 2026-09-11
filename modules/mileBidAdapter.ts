@@ -14,7 +14,7 @@ import { getDNT } from '../libraries/dnt/index.js';
 
 const BIDDER_CODE = 'mile';
 
-const MILE_BIDDER_HOST = 'https://pbs.atmtd.com';
+const MILE_BIDDER_HOST = 'https://staging-pbs.mile.so';
 const ENDPOINT_URL = `${MILE_BIDDER_HOST}/mile/v1/request`;
 const USER_SYNC_ENDPOINT = `https://scripts.atmtd.com/user-sync/load-cookie.html`;
 
