@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { dep, spec } from 'modules/mileBidAdapter.js';
 import { BANNER } from 'src/mediaTypes.js';
+import { config } from 'src/config.js';
 
 describe('mileBidAdapter', function () {
   describe('isBidRequestValid', function () {
@@ -93,6 +94,33 @@ describe('mileBidAdapter', function () {
           }
         }
       };
+    });
+
+    describe('bid cache signal', function () {
+      afterEach(function () {
+        config.resetConfig();
+      });
+
+      it('should set ext.mile.bidCache when Prebid bid caching is on', function () {
+        config.setConfig({ useBidCache: true });
+        const request = spec.buildRequests(validBidRequests, bidderRequest);
+
+        expect(request.data.ext.mile).to.deep.equal({ bidCache: true });
+        expect(request.data.ext.prebid.channel.name).to.equal('pbjs');
+      });
+
+      it('should not set ext.mile when Prebid bid caching is off', function () {
+        config.setConfig({ useBidCache: false });
+        const request = spec.buildRequests(validBidRequests, bidderRequest);
+
+        expect(request.data.ext).to.not.have.property('mile');
+      });
+
+      it('should not set ext.mile by default', function () {
+        const request = spec.buildRequests(validBidRequests, bidderRequest);
+
+        expect(request.data.ext).to.not.have.property('mile');
+      });
     });
 
     it('should return a valid server request object', function () {
@@ -461,6 +489,28 @@ describe('mileBidAdapter', function () {
       expect(bids[0].currency).to.equal('USD');
     });
 
+    it('should return every bid for the same impression with its own mileBidId', function () {
+      serverResponse.body.bids[0].mileBidId = 'bid123';
+      serverResponse.body.bids.push(
+        { requestId: 'bid123', mileBidId: 'bid123-b1', cpm: 1.2, width: 300, height: 250, ad: '<div>extra 1</div>', creativeId: 'creative-b1', upstreamBidder: 'pubmatic' },
+        { requestId: 'bid123', mileBidId: 'bid123-b2', cpm: 0.9, width: 728, height: 90, ad: '<div>extra 2</div>', creativeId: 'creative-b2', upstreamBidder: 'openx' }
+      );
+      const bids = spec.interpretResponse(serverResponse);
+
+      expect(bids).to.have.lengthOf(3);
+      expect(bids.map(bid => bid.requestId)).to.deep.equal(['bid123', 'bid123', 'bid123']);
+      expect(bids.map(bid => bid.meta.mileBidId)).to.deep.equal(['bid123', 'bid123-b1', 'bid123-b2']);
+      expect(bids.map(bid => bid.cpm)).to.deep.equal([1.5, 1.2, 0.9]);
+      expect(bids[1].meta.upstreamBidder).to.equal('pubmatic');
+      expect(bids[2].width).to.equal(728);
+    });
+
+    it('should not set meta.mileBidId when the server does not send one', function () {
+      const bids = spec.interpretResponse(serverResponse);
+
+      expect(bids[0].meta).to.not.have.property('mileBidId');
+    });
+
     it('should handle response with no site or publisher', function () {
       delete serverResponse.body.site;
       delete serverResponse.body.publisher;
@@ -603,6 +653,35 @@ describe('mileBidAdapter', function () {
       expect(notificationData.yetiPublisherID).to.equal('pub456');
       expect(notificationData.page).to.equal('https://example.com/page');
       expect(notificationData.site).to.equal('example.com');
+    });
+
+    it('should send mileBidId for a bid that has one', function () {
+      bid.meta.mileBidId = 'bid123-b1';
+      spec.onBidWon(bid);
+
+      const notificationData = JSON.parse(ajaxStub.getCall(0).args[2])[0];
+      expect(notificationData.metaData).to.deep.equal({
+        impressionID: ['bid123'],
+        mileBidId: ['bid123-b1'],
+      });
+    });
+
+    it('should not send mileBidId for a bid without one', function () {
+      spec.onBidWon(bid);
+
+      const notificationData = JSON.parse(ajaxStub.getCall(0).args[2])[0];
+      expect(notificationData.metaData).to.deep.equal({ impressionID: ['bid123'] });
+    });
+
+    it('should report the original request id when the multibid module replaced it', function () {
+      bid.requestId = 'random-multibid-id';
+      bid.originalRequestId = 'bid123';
+      bid.meta.mileBidId = 'bid123-b2';
+      spec.onBidWon(bid);
+
+      const notificationData = JSON.parse(ajaxStub.getCall(0).args[2])[0];
+      expect(notificationData.metaData.impressionID).to.deep.equal(['bid123']);
+      expect(notificationData.metaData.mileBidId).to.deep.equal(['bid123-b2']);
     });
 
     it('should call nurl with GET request', function () {
