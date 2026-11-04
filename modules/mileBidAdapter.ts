@@ -2,6 +2,7 @@ import { type BidderSpec, registerBidder } from '../src/adapters/bidderFactory.j
 import { BANNER } from '../src/mediaTypes.js';
 import { deepAccess, deepSetValue, generateUUID, logInfo, logError } from '../src/utils.js';
 import { ajax } from '../src/ajax.js';
+import { config } from '../src/config.js';
 import { getDNT } from '../libraries/dnt/index.js';
 
 /**
@@ -235,6 +236,12 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
       version: '$prebid.version$',
     });
 
+    // With bid caching on, Prebid.js keeps unused bids for later auctions, so
+    // the server may return extra bids per impression for them.
+    if (config.getConfig('useBidCache')) {
+      deepSetValue(openRtbRequest, 'ext.mile.bidCache', true);
+    }
+
     return {
       method: 'POST',
       url: ENDPOINT_URL,
@@ -296,6 +303,9 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
           publisherID: deepAccess(response, 'site.publisher.id') || '',
           page: deepAccess(response, 'site.page') || '',
           domain: deepAccess(response, 'site.domain') || '',
+          // Set when the server returns extra bids for this impression; each
+          // bid's win is validated against its own mileBidId.
+          ...(bid.mileBidId ? { mileBidId: bid.mileBidId } : {}),
         }
       };
 
@@ -381,10 +391,16 @@ export const spec: BidderSpec<typeof BIDDER_CODE> = {
   onBidWon: function (bid) {
     logInfo(`${BIDDER_CODE}: Bid won`, bid);
 
+    // The multibid module replaces requestId on extra bids; the server knows
+    // the impression by the original one.
+    const impressionId = (bid as any).originalRequestId || bid.requestId;
+    const mileBidId = deepAccess(bid, 'meta.mileBidId');
+
     const winNotificationData = {
       adUnitCode: bid.adUnitCode,
       metaData: {
-        impressionID: [bid.requestId],
+        impressionID: [impressionId],
+        ...(mileBidId ? { mileBidId: [mileBidId] } : {}),
       },
       ua: navigator.userAgent,
       timestamp: Date.now(),
